@@ -135,6 +135,7 @@ require (
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	google.golang.org/api v0.25.0 // indirect
 	gotest.tools v2.2.0+incompatible
+	github.com/gomodule/redigo v1.8.0
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
 
