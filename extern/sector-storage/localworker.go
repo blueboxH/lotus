@@ -184,8 +184,13 @@ func (l *LocalWorker) FinalizeSector(ctx context.Context, sector abi.SectorID, k
 			return xerrors.Errorf("removing unsealed data: %w", err)
 		}
 	}
-
-	return nil
+	// ============================= mod ===========================
+	unsealed := stores.FTNone
+	if len(keepUnsealed) != 0 {
+		unsealed = stores.FTUnsealed
+	}
+	return l.localStore.SendSectorToMiner(ctx, sector, l.scfg.SealProofType, stores.FTCache|stores.FTSealed|unsealed)
+	// ============================= mod ===========================
 }
 
 func (l *LocalWorker) ReleaseUnsealed(ctx context.Context, sector abi.SectorID, safeToFree []storage2.Range) error {
