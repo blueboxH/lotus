@@ -150,7 +150,7 @@ func newScheduler(spt abi.RegisteredSealProof) *scheduler {
 		watchClosing:  make(chan WorkerID),
 		workerClosing: make(chan WorkerID),
 
-		schedule:       make(chan *workerRequest, 1000),
+		schedule:       make(chan *workerRequest),
 		windowRequests: make(chan *schedWindowRequest),
 
 		schedQueue: &requestQueue{},
@@ -242,52 +242,34 @@ func (sh *scheduler) runSched() {
 
 		case req := <-sh.schedule:
 			// ==========================================      mod     ===================================
-			var workerRequests []*workerRequest
-			workerRequests = append(workerRequests, req)
-			for i := 0; i < len(sh.schedule); i++ {
-				workerRequests = append(workerRequests, req)
-			}
-			log.Debugf("get %d workerRequest", len(workerRequests))
-
-			doTrySched := false
-			doTryHtSched := false
-			for _, request := range workerRequests {
-				// p1 p2 c1 且已经缓存过, 存入自己维护的map, c2 也自己维护
-				cacheHostname := SchedulerHt.getSectorCache(request.sector.Number)
-				htSched := false
-				for _, task := range htSchedTasks {
-					if task == request.taskType {
-						htSched = true
-						break
-					}
-				}
-
-				if htSched && cacheHostname != "" {
-					shedMap := sh.htSchedMap[cacheHostname]
-					if shedMap == nil {
-						shedMap = make(map[sealtasks.TaskType]map[abi.SectorID]*workerRequest)
-						sh.htSchedMap[cacheHostname] = shedMap
-					}
-					taskMap := shedMap[request.taskType]
-					if taskMap == nil {
-						taskMap = make(map[abi.SectorID]*workerRequest)
-						sh.htSchedMap[cacheHostname][request.taskType] = taskMap
-					}
-					taskMap[request.sector] = request
-					log.Debugf("add sector %s %s to htSchedMap", request.sector, request.taskType.Short())
-
-					doTryHtSched = true
-				} else {
-					sh.schedQueue.Push(request)
-					doTrySched = true
+			// p1 p2 c1 且已经缓存过, 存入自己维护的map, c2 也自己维护
+			cacheHostname := SchedulerHt.getSectorCache(req.sector.Number)
+			htSched := false
+			for _, task := range htSchedTasks {
+				if task == req.taskType {
+					htSched = true
+					break
 				}
 			}
 
-			if doTrySched {
-				sh.trySched()
-			}
-			if doTryHtSched {
+			if htSched && cacheHostname != "" {
+				shedMap := sh.htSchedMap[cacheHostname]
+				if shedMap == nil {
+					shedMap = make(map[sealtasks.TaskType]map[abi.SectorID]*workerRequest)
+					sh.htSchedMap[cacheHostname] = shedMap
+				}
+				taskMap := shedMap[req.taskType]
+				if taskMap == nil {
+					taskMap = make(map[abi.SectorID]*workerRequest)
+					sh.htSchedMap[cacheHostname][req.taskType] = taskMap
+				}
+				taskMap[req.sector] = req
+				log.Debugf("add sector %s %s to htSchedMap", req.sector, req.taskType.Short())
+
 				sh.tryHtSched()
+			} else {
+				sh.schedQueue.Push(req)
+				sh.trySched()
 			}
 
 			// ==========================================      mod     ===================================
