@@ -38,7 +38,7 @@ import (
 
 var log = logging.Logger("messagepool")
 
-const futureDebug = false
+var futureDebug = false
 
 var rbfNumBig = types.NewInt(uint64((ReplaceByFeeRatioDefault - 1) * RbfDenom))
 var rbfDenomBig = types.NewInt(RbfDenom)
@@ -190,12 +190,7 @@ func New(api Provider, ds dtypes.MetadataDS, netName dtypes.NetworkName) (*Messa
 	// enable initial prunes
 	mp.pruneCooldown <- struct{}{}
 
-	if err := mp.loadLocal(); err != nil {
-		log.Errorf("loading local messages: %+v", err)
-	}
-
-	go mp.runLoop()
-
+	// load the current tipset and subscribe to head changes _before_ loading local messages
 	mp.curTs = api.SubscribeHeadChanges(func(rev, app []*types.TipSet) error {
 		err := mp.HeadChange(rev, app)
 		if err != nil {
@@ -203,6 +198,12 @@ func New(api Provider, ds dtypes.MetadataDS, netName dtypes.NetworkName) (*Messa
 		}
 		return err
 	})
+
+	if err := mp.loadLocal(); err != nil {
+		log.Errorf("loading local messages: %+v", err)
+	}
+
+	go mp.runLoop()
 
 	return mp, nil
 }
@@ -650,6 +651,10 @@ func (mp *MessagePool) Pending() ([]*types.SignedMessage, *types.TipSet) {
 	mp.lk.Lock()
 	defer mp.lk.Unlock()
 
+	return mp.allPending()
+}
+
+func (mp *MessagePool) allPending() ([]*types.SignedMessage, *types.TipSet) {
 	out := make([]*types.SignedMessage, 0)
 	for a := range mp.pending {
 		out = append(out, mp.pendingFor(a)...)
@@ -657,6 +662,7 @@ func (mp *MessagePool) Pending() ([]*types.SignedMessage, *types.TipSet) {
 
 	return out, mp.curTs
 }
+
 func (mp *MessagePool) PendingFor(a address.Address) ([]*types.SignedMessage, *types.TipSet) {
 	mp.curTsLk.Lock()
 	defer mp.curTsLk.Unlock()
@@ -789,7 +795,9 @@ func (mp *MessagePool) HeadChange(revert []*types.TipSet, apply []*types.TipSet)
 	}
 
 	if len(revert) > 0 && futureDebug {
-		msgs, ts := mp.Pending()
+		mp.lk.Lock()
+		msgs, ts := mp.allPending()
+		mp.lk.Unlock()
 
 		buckets := map[address.Address]*statBucket{}
 
@@ -900,8 +908,6 @@ func (mp *MessagePool) runHeadChange(from *types.TipSet, to *types.TipSet, rmsgs
 	}
 
 	for _, ts := range apply {
-		mp.curTs = ts
-
 		for _, b := range ts.Blocks() {
 			bmsgs, smsgs, err := mp.api.MessagesForBlock(b)
 			if err != nil {
@@ -974,6 +980,7 @@ func (mp *MessagePool) Updates(ctx context.Context) (<-chan api.MpoolUpdate, err
 
 	go func() {
 		defer mp.changes.Unsub(sub, localUpdates)
+		defer close(out)
 
 		for {
 			select {
@@ -982,8 +989,12 @@ func (mp *MessagePool) Updates(ctx context.Context) (<-chan api.MpoolUpdate, err
 				case out <- u.(api.MpoolUpdate):
 				case <-ctx.Done():
 					return
+				case <-mp.closer:
+					return
 				}
 			case <-ctx.Done():
+				return
+			case <-mp.closer:
 				return
 			}
 		}
