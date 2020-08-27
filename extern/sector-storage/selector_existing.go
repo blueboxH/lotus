@@ -50,6 +50,9 @@ func (s *existingSelector) Ok(ctx context.Context, task sealtasks.TaskType, spt 
 	if err != nil {
 		return false, xerrors.Errorf("finding best storage: %w", err)
 	}
+	if sealtasks.TTFinalize == task {
+		log.Infof("============== FIL Ok best: %v, have : %v", best, have)
+	}
 
 	for _, info := range best {
 		if _, ok := have[info.ID]; ok {

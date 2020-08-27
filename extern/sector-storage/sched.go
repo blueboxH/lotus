@@ -830,6 +830,7 @@ func (sh *scheduler) dropWorker(wid WorkerID) {
 	// ==========================================      mod     ===================================
 	SchedulerHt.delPSet(w.info.Hostname)
 	SchedulerHt.delCSet(w.info.Hostname)
+	log.Infof("dropWorker %s and delete from pPet and cSet", w.info.Hostname)
 	// ==========================================      mod     ===================================
 
 	delete(sh.workers, wid)
