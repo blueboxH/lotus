@@ -4,6 +4,8 @@ package ffiwrapper
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/build"
+	"time"
 
 	"golang.org/x/xerrors"
 
@@ -31,13 +33,15 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 }
 
 func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []abi.SectorInfo, randomness abi.PoStRandomness) ([]abi.PoStProof, []abi.SectorID, error) {
+	tsStart := build.Clock.Now()
+
 	randomness[31] &= 0x3f
 	privsectors, skipped, done, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWindowPoStProof)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("gathering sector info: %w", err)
 	}
 	defer done()
-
+	log.Infof(">>>>>>>>>>>>>>>>>>>>   pubSectorToPriv cost %s", time.Since(tsStart))
 	proof, err := ffi.GenerateWindowPoSt(minerID, privsectors, randomness)
 	return proof, skipped, err
 }
