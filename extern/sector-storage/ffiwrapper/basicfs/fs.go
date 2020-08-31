@@ -2,7 +2,6 @@ package basicfs
 
 import (
 	"context"
-	"github.com/prometheus/common/log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -26,7 +25,6 @@ type Provider struct {
 }
 
 func (b *Provider) AcquireSector(ctx context.Context, id abi.SectorID, existing stores.SectorFileType, allocate stores.SectorFileType, ptype stores.PathType) (stores.SectorPaths, func(), error) {
-	log.Info(">>>>>>>>>>>>>>>>>>>>>>> sector %s start Provider AcquireSector ", id)
 	if err := os.Mkdir(filepath.Join(b.Root, stores.FTUnsealed.String()), 0755); err != nil && !os.IsExist(err) { // nolint
 		return stores.SectorPaths{}, nil, err
 	}

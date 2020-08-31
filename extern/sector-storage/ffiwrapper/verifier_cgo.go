@@ -41,8 +41,10 @@ func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, s
 		return nil, nil, xerrors.Errorf("gathering sector info: %w", err)
 	}
 	defer done()
-	log.Infof(">>>>>>>>>>>>>>>>>>>>   pubSectorToPriv cost %s", time.Since(tsStart))
+	log.Infow(">>>>>>>>>>>>>>>>>>>>   pubSectorToPriv cost", "elapsed", time.Since(tsStart))
+	gwpStart := build.Clock.Now()
 	proof, err := ffi.GenerateWindowPoSt(minerID, privsectors, randomness)
+	log.Infow(">>>>>>>>>>>>>>>>>>>>   GenerateWindowPoSt cost", "elapsed", time.Since(gwpStart))
 	return proof, skipped, err
 }
 
