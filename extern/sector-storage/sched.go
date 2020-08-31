@@ -253,58 +253,17 @@ func (sh *scheduler) runSched() {
 			sh.dropWorker(wid)
 
 		case req := <-sh.schedule:
-			sh.schedQueue.Push(req)
+			// ==========================================      mod     ===================================
+			sh.pushWorkerRequest(req)
+			// ==========================================      mod     ===================================
 			doSched = true
-			// ==========================================      mod     ===================================
-			// p1 p2 c1 且已经缓存过, 存入自己维护的map, c2 也自己维护
-			cacheHostname := SchedulerHt.getSectorCache(req.sector.Number)
-			htSched := false
-			for _, task := range htSchedTasks {
-				if task == req.taskType {
-					htSched = true
-					break
-				}
-			}
-
-			if htSched && cacheHostname != "" {
-				shedMap := sh.htSchedMap[cacheHostname]
-				if shedMap == nil {
-					shedMap = make(map[sealtasks.TaskType]map[abi.SectorID]*workerRequest)
-					sh.htSchedMap[cacheHostname] = shedMap
-				}
-				taskMap := shedMap[req.taskType]
-				if taskMap == nil {
-					taskMap = make(map[abi.SectorID]*workerRequest)
-					sh.htSchedMap[cacheHostname][req.taskType] = taskMap
-				}
-				taskMap[req.sector] = req
-				log.Debugf("add sector %s %s to htSchedMap", req.sector, req.taskType.Short())
-
-				sh.tryHtSched()
-			} else {
-				sh.schedQueue.Push(req)
-				sh.trySched()
-			}
-
-			// ==========================================      mod     ===================================
 			if sh.testSync != nil {
 				sh.testSync <- struct{}{}
 			}
 		case req := <-sh.windowRequests:
 			sh.openWindows = append(sh.openWindows, req)
 			doSched = true
-			sh.trySched()
 
-			// ==========================================      mod     ===================================
-			worker, found := sh.workers[req.worker]
-			if found {
-				if SchedulerHt.pSethave(worker.info.Hostname) {
-					sh.tryHtSched()
-				}
-			} else {
-				log.Error("worker %d not fond", worker)
-			}
-			// ==========================================      mod     ===================================
 		case ireq := <-sh.info:
 			ireq(sh.diag())
 
@@ -324,7 +283,10 @@ func (sh *scheduler) runSched() {
 			for {
 				select {
 				case req := <-sh.schedule:
-					sh.schedQueue.Push(req)
+					log.Debugf("================ get sector %s %s at loop", req.sector, req.taskType.Short())
+					// ==========================================      mod     ===================================
+					sh.pushWorkerRequest(req)
+					// ==========================================      mod     ===================================
 					if sh.testSync != nil {
 						sh.testSync <- struct{}{}
 					}
@@ -336,10 +298,46 @@ func (sh *scheduler) runSched() {
 			}
 
 			sh.trySched()
+			sh.tryHtSched() // 由于3秒判断一次, 所以这里就不对两种类型进行判断
 		}
 
 	}
 }
+
+// ==========================================      mod     ===================================
+func (sh *scheduler) pushWorkerRequest(req *workerRequest) {
+
+	// p1 p2 c1 且已经缓存过, 存入自己维护的map, c2 也自己维护
+	cacheHostname := SchedulerHt.getSectorCache(req.sector.Number)
+	htSched := false
+	for _, task := range htSchedTasks {
+		if task == req.taskType {
+			htSched = true
+			break
+		}
+	}
+
+	if htSched && cacheHostname != "" {
+		shedMap := sh.htSchedMap[cacheHostname]
+		if shedMap == nil {
+			shedMap = make(map[sealtasks.TaskType]map[abi.SectorID]*workerRequest)
+			sh.htSchedMap[cacheHostname] = shedMap
+		}
+		taskMap := shedMap[req.taskType]
+		if taskMap == nil {
+			taskMap = make(map[abi.SectorID]*workerRequest)
+			sh.htSchedMap[cacheHostname][req.taskType] = taskMap
+		}
+		taskMap[req.sector] = req
+		log.Debugf("add sector %s %s to htSchedMap", req.sector, req.taskType.Short())
+
+	} else {
+		sh.schedQueue.Push(req)
+		log.Debugf("add sector %s %s to schedQueue", req.sector, req.taskType.Short())
+	}
+}
+
+// ==========================================      mod     ===================================
 
 func (sh *scheduler) diag() SchedDiagInfo {
 	var out SchedDiagInfo
