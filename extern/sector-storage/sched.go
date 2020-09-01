@@ -21,9 +21,9 @@ type schedPrioCtxKey int
 var SchedPriorityKey schedPrioCtxKey
 var DefaultSchedPriority = 0
 var SelectorTimeout = 5 * time.Second
-var htSchedTasks = []sealtasks.TaskType{sealtasks.TTCommit1, sealtasks.TTPreCommit1, sealtasks.TTPreCommit2} // 列表顺序不能打乱
-var UnScheduling = make(map[abi.SectorNumber]struct{})                                                       // 已添加却未调度给P worker 的列表
-var APHTSets = make(map[abi.SectorNumber]struct{})                                                           // 已添加却未调度APHT的上去编号
+var htSchedTasks = []sealtasks.TaskType{sealtasks.TTFinalize, sealtasks.TTCommit1, sealtasks.TTPreCommit2, sealtasks.TTPreCommit1} // 列表顺序不能打乱
+var UnScheduling = make(map[abi.SectorNumber]struct{})                                                                             // 已添加却未调度给P worker 的列表
+var APHTSets = make(map[abi.SectorNumber]struct{})                                                                                 // 已添加却未调度APHT的上去编号
 var InitWait = 3 * time.Second
 
 var (
@@ -297,8 +297,8 @@ func (sh *scheduler) runSched() {
 				}
 			}
 
-			sh.trySched()
 			sh.tryHtSched() // 由于3秒判断一次, 所以这里就不对两种类型进行判断
+			sh.trySched()
 		}
 
 	}
@@ -506,7 +506,7 @@ func (sh *scheduler) trySched() {
 
 	wg.Wait()
 
-	log.Debugf("SCHED windows: %+v", windows)
+	//log.Debugf("SCHED windows: %+v", windows)
 	log.Debugf("SCHED Acceptable win: %+v", acceptableWindows)
 
 	// Step 2
@@ -608,7 +608,6 @@ func (sh *scheduler) tryHtSched() {
 		hostname := worker.info.Hostname
 		requestQueueMap := sh.htSchedMap[hostname]
 		schedWindow := schedWindow{}
-		log.Infof("try SCHED ASSIGNED host %s task", hostname)
 
 		for _, schedTask := range htSchedTasks {
 			needRes := ResourceTable[schedTask][sh.spt]
@@ -618,14 +617,28 @@ func (sh *scheduler) tryHtSched() {
 			log.Debugf("start filter %s %s task, task len %d", hostname, schedTask.Short(), len(requestQueueMap[schedTask]))
 			for sector, task := range requestQueueMap[schedTask] {
 				// TODO: allow bigger windows
-				if !schedWindow.allocated.canHandleRequest(needRes, openWindow.worker, worker.info.Resources) {
+				if !schedWindow.allocated.canHandleRequest(needRes, openWindow.worker, "htschedAssign", worker.info.Resources) {
 					continue
 				}
 
 				schedWindow.allocated.add(worker.info.Resources, needRes)
 
+				rpcCtx, cancel := context.WithTimeout(task.ctx, SelectorTimeout)
+				ok, err := task.sel.Ok(rpcCtx, task.taskType, sh.spt, worker)
+				cancel()
+				if err != nil {
+					log.Errorf("tryHtSched req.sel.Ok error: %+v", err)
+					continue
+				}
+
+				if !ok {
+					continue
+				}
+
 				schedWindow.todo = append(schedWindow.todo, task)
+
 				SchedulerHt.afterScheduled(task.sector, task.taskType, hostname)
+
 				log.Infof("tryHtSched SCHED ASSIGNED sector %d taskType %s to host %s", sector, task.taskType.Short(), hostname)
 				delete(requestQueueMap[schedTask], sector)
 

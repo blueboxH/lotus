@@ -16,6 +16,7 @@ var RedisClient *redis.Pool
 var sectorNumPerWorker int
 var redisPrefix string // todo
 var workerSectorStatesRedisPrefix = "workerSectorStates:"
+var workerDoingSectorRedisPrefix = "workerDoingSector:"
 var SchedulerHt schedulerHt = schedulerHt{}
 
 type workerSectorStates map[abi.SectorNumber]string
@@ -205,6 +206,28 @@ func (sh schedulerHt) delWorkerSectorState(hostname string, number abi.SectorNum
 	}
 }
 
+func (sh schedulerHt) getWorkerDoingSector(hostname string, number abi.SectorNumber) []byte {
+	res, err := redis.Bytes(redo("hget", redisPrefix+workerDoingSectorRedisPrefix+hostname, number))
+	if err != nil {
+		return []byte{}
+	}
+	return res
+}
+
+func (sh schedulerHt) setWorkerDoingSector(hostname string, number abi.SectorNumber, res []byte) {
+	_, err := redo("hset", redisPrefix+workerDoingSectorRedisPrefix+hostname, number, res)
+	if err != nil {
+		log.Debug(err)
+	}
+}
+
+func (sh schedulerHt) delWorkerDoingSector(hostname string, number abi.SectorNumber) {
+	_, err := redo("hdel", redisPrefix+workerDoingSectorRedisPrefix+hostname, number)
+	if err != nil {
+		log.Debug(err)
+	}
+}
+
 func (sh schedulerHt) pSethave(hostname string) bool {
 	have, err := redis.Bool(redo("SISMEMBER", redisPrefix+"pWorker", hostname))
 	if err != nil {
@@ -364,7 +387,7 @@ func (sh schedulerHt) afterTaskFinish(sector abi.SectorID, taskType sealtasks.Ta
 			sh.setCanDoNewSector(hostname, true)
 		}
 
-		// 智能调度
+		// 智能 pledge
 		todoNum := 0
 
 		for _, host := range sh.getAllPSet() {
@@ -402,11 +425,30 @@ func (sh schedulerHt) afterScheduled(sector abi.SectorID, taskType sealtasks.Tas
 			sh.setCanDoNewSector(hostname, false)
 		}
 
+		if sealtasks.TTPreCommit1 == taskType { // todo: 错误情况, 有没有更合理的处理方式
+			lastTaskType := sh.getWorkerSectorState(hostname, sector.Number)
+			if (sealtasks.TTPreCommit1.Short() == lastTaskType || sealtasks.TTPreCommit2.Short() == lastTaskType) && sh.getWorkerSectorLen(hostname) < sh.getWorkerMaxSectorNum(hostname) {
+				log.Debugf("host %s worker active from %t to true, because of it last taskType is %s and handing sector %v", hostname, sh.canDoNewSector(hostname), lastTaskType, sh.getWorkerSectorStates(hostname))
+				sh.setCanDoNewSector(hostname, true)
+			}
+		}
+
 	}
 
 	// 维护 已添加却未调度map
 
 	if sealtasks.TTPreCommit1 == taskType || sealtasks.TTAddPieceHT == taskType { // p1 或者 apht 说明已经进入了调用
 		delete(UnScheduling, sector.Number)
+	}
+}
+
+// worker 在开始做p1 p2 等耗时任务时候, 将任务类型值写入redis, 表示开始, 将运行结果值写入redis, 表示结束
+func isFinished(hostname string, sector abi.SectorID, taskType sealtasks.TaskType) (bool, func()) {
+
+	// 获取任务
+	//doingSector := SchedulerHt.getWorkerDoingSector(hostname, sector.Number)
+
+	return false, func() {
+
 	}
 }
