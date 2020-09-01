@@ -1,6 +1,7 @@
 package sectorstorage
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"os"
@@ -123,6 +124,12 @@ func (l *LocalWorker) Fetch(ctx context.Context, sector abi.SectorID, fileType s
 }
 
 func (l *LocalWorker) SealPreCommit1(ctx context.Context, sector abi.SectorID, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out storage2.PreCommit1Out, err error) {
+	// ============================= mod ===========================
+	cacheRes, finish := isFinished(sector, sealtasks.TTPreCommit1)
+	if len(cacheRes) > 0 {
+		return cacheRes, nil
+	}
+	// ============================= mod ===========================
 	{
 		// cleanup previous failed attempts if they exist
 		if err := l.storage.Remove(ctx, sector, stores.FTSealed, true); err != nil {
@@ -139,16 +146,49 @@ func (l *LocalWorker) SealPreCommit1(ctx context.Context, sector abi.SectorID, t
 		return nil, err
 	}
 
-	return sb.SealPreCommit1(ctx, sector, ticket, pieces)
+	// ============================= mod ===========================
+	out, err = sb.SealPreCommit1(ctx, sector, ticket, pieces)
+
+	defer finish(out)
+
+	return out, err
+	// ============================= mod ===========================
 }
 
 func (l *LocalWorker) SealPreCommit2(ctx context.Context, sector abi.SectorID, phase1Out storage2.PreCommit1Out) (cids storage2.SectorCids, err error) {
+	// ============================= mod ===========================
+	sep := []byte(";")
+
+	cacheRes, finish := isFinished(sector, sealtasks.TTPreCommit2)
+	if len(cacheRes) > 0 {
+		split := bytes.Split(cacheRes, sep)
+		if len(split) == 2 {
+			unsealed, err1 := cid.Cast(split[0])
+			sealed, err2 := cid.Cast(split[1])
+			if err1 != nil && err2 != nil {
+				return storage2.SectorCids{Unsealed: unsealed, Sealed: sealed}, nil
+			} else {
+				log.Infof("sector %s %s get cacheRes from redis decode cid error, redo it: %s", sector, sealtasks.TTPreCommit2.Short(), cacheRes)
+			}
+		} else {
+			log.Infof("sector %s %s get cacheRes from redis decode error, redo it: %s", sector, sealtasks.TTPreCommit2.Short(), cacheRes)
+		}
+	}
+	// ============================= mod ===========================
 	sb, err := l.sb()
 	if err != nil {
 		return storage2.SectorCids{}, err
 	}
 
-	return sb.SealPreCommit2(ctx, sector, phase1Out)
+	// ============================= mod ===========================
+	cids, err = sb.SealPreCommit2(ctx, sector, phase1Out)
+	var cache []byte
+	if err == nil {
+		cache = bytes.Join([][]byte{cids.Unsealed.Bytes(), cids.Sealed.Bytes()}, sep)
+	}
+	defer finish(cache)
+	return cids, err
+	// ============================= mod ===========================
 }
 
 func (l *LocalWorker) SealCommit1(ctx context.Context, sector abi.SectorID, ticket abi.SealRandomness, seed abi.InteractiveSealRandomness, pieces []abi.PieceInfo, cids storage2.SectorCids) (output storage2.Commit1Out, err error) {
@@ -161,12 +201,22 @@ func (l *LocalWorker) SealCommit1(ctx context.Context, sector abi.SectorID, tick
 }
 
 func (l *LocalWorker) SealCommit2(ctx context.Context, sector abi.SectorID, phase1Out storage2.Commit1Out) (proof storage2.Proof, err error) {
+	// ============================= mod ===========================
+	cacheRes, finish := isFinished(sector, sealtasks.TTCommit2)
+	if len(cacheRes) > 0 {
+		return cacheRes, nil
+	}
+	// ============================= mod ===========================
 	sb, err := l.sb()
 	if err != nil {
 		return nil, err
 	}
 
-	return sb.SealCommit2(ctx, sector, phase1Out)
+	// ============================= mod ===========================
+	proof, err = sb.SealCommit2(ctx, sector, phase1Out)
+	defer finish(proof)
+	return proof, err
+	// ============================= mod ===========================
 }
 
 func (l *LocalWorker) FinalizeSector(ctx context.Context, sector abi.SectorID, keepUnsealed []storage2.Range) error {

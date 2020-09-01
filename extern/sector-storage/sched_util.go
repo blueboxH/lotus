@@ -18,6 +18,7 @@ var redisPrefix string // todo
 var workerSectorStatesRedisPrefix = "workerSectorStates:"
 var workerDoingSectorRedisPrefix = "workerDoingSector:"
 var SchedulerHt schedulerHt = schedulerHt{}
+var DoingSectors map[abi.SectorNumber]sealtasks.TaskType = make(map[abi.SectorNumber]sealtasks.TaskType)
 
 type workerSectorStates map[abi.SectorNumber]string
 
@@ -206,23 +207,23 @@ func (sh schedulerHt) delWorkerSectorState(hostname string, number abi.SectorNum
 	}
 }
 
-func (sh schedulerHt) getWorkerDoingSector(hostname string, number abi.SectorNumber) []byte {
-	res, err := redis.Bytes(redo("hget", redisPrefix+workerDoingSectorRedisPrefix+hostname, number))
+func (sh schedulerHt) getWorkerDoingSector(taskType sealtasks.TaskType, number abi.SectorNumber) []byte {
+	res, err := redis.Bytes(redo("hget", redisPrefix+workerDoingSectorRedisPrefix+taskType.Short(), number))
 	if err != nil {
 		return []byte{}
 	}
 	return res
 }
 
-func (sh schedulerHt) setWorkerDoingSector(hostname string, number abi.SectorNumber, res []byte) {
-	_, err := redo("hset", redisPrefix+workerDoingSectorRedisPrefix+hostname, number, res)
+func (sh schedulerHt) setWorkerDoingSector(taskType sealtasks.TaskType, number abi.SectorNumber, res []byte) {
+	_, err := redo("hset", redisPrefix+workerDoingSectorRedisPrefix+taskType.Short(), number, res)
 	if err != nil {
 		log.Debug(err)
 	}
 }
 
-func (sh schedulerHt) delWorkerDoingSector(hostname string, number abi.SectorNumber) {
-	_, err := redo("hdel", redisPrefix+workerDoingSectorRedisPrefix+hostname, number)
+func (sh schedulerHt) delWorkerDoingSector(taskType sealtasks.TaskType, number abi.SectorNumber) {
+	_, err := redo("hdel", redisPrefix+workerDoingSectorRedisPrefix+taskType.Short(), number)
 	if err != nil {
 		log.Debug(err)
 	}
@@ -442,13 +443,22 @@ func (sh schedulerHt) afterScheduled(sector abi.SectorID, taskType sealtasks.Tas
 	}
 }
 
-// worker 在开始做p1 p2 等耗时任务时候, 将任务类型值写入redis, 表示开始, 将运行结果值写入redis, 表示结束
-func isFinished(hostname string, sector abi.SectorID, taskType sealtasks.TaskType) (bool, func()) {
+// worker 在开始做p1 p2 等耗时任务时候, 将任务类型值写入redis, 表示开始, 结束时删除此值, 另外, 将运行结果值写入redis
+func isFinished(sector abi.SectorID, taskType sealtasks.TaskType) (cacheRes []byte, finish func(res []byte)) {
 
-	// 获取任务
-	//doingSector := SchedulerHt.getWorkerDoingSector(hostname, sector.Number)
+	cacheRes = SchedulerHt.getWorkerDoingSector(taskType, sector.Number)
 
-	return false, func() {
+	if len(cacheRes) > 0 {
+		log.Infof("sector %s %s is done , will skip it", sector, taskType)
+	}
 
+	DoingSectors[sector.Number] = taskType
+
+	return cacheRes, func(res []byte) {
+		if len(res) > 0 {
+			SchedulerHt.setWorkerDoingSector(taskType, sector.Number, res)
+			log.Infof("sector %s %s finish, result %v cache to redis", sector, taskType, res)
+		}
+		delete(DoingSectors, sector.Number)
 	}
 }

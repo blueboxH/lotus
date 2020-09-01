@@ -899,6 +899,7 @@ func (sh *scheduler) assignWorker(taskDone chan struct{}, wid WorkerID, w *worke
 			// ==========================================      mod     ===================================
 			if err == nil {
 				SchedulerHt.afterTaskFinish(req.sector, req.taskType, w.info.Hostname)
+				SchedulerHt.delWorkerDoingSector(req.taskType, req.sector.Number)
 			}
 			// ==========================================      mod     ===================================
 
