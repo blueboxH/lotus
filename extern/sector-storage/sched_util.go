@@ -84,6 +84,14 @@ func getRedisPath() (string, int) {
 	return s[0], db
 }
 
+func getRedisPrefix() string {
+	if redisPrefix != "" {
+		return redisPrefix
+	}
+	_, _ = getRedisPath()
+	return redisPrefix
+}
+
 // 在pool加入TestOnBorrow方法来去除扫描坏连接
 func redo(command string, opt ...interface{}) (interface{}, error) {
 	if RedisClient == nil {
@@ -150,7 +158,7 @@ func (sh schedulerHt) getWorkerMaxSectorNum(hostname string) int {
 		return 0
 	}
 
-	workerMaxSectorNum, err := redis.Int(redo("hget", redisPrefix+"workerMaxSectorNum", hostname))
+	workerMaxSectorNum, err := redis.Int(redo("hget", getRedisPrefix()+"workerMaxSectorNum", hostname))
 	if err != nil {
 		return 0
 	}
@@ -160,20 +168,20 @@ func (sh schedulerHt) getWorkerMaxSectorNum(hostname string) int {
 }
 
 func (sh schedulerHt) setWorkerMaxSectorNum(hostname string, num int) {
-	_, err := redo("hset", redisPrefix+"workerMaxSectorNum", hostname, num)
+	_, err := redo("hset", getRedisPrefix()+"workerMaxSectorNum", hostname, num)
 	if err != nil {
 		log.Debug(err)
 	}
 }
 
 func (sh schedulerHt) getWorkerSectorStates(hostname string) workerSectorStates {
-	stringMap, err := redis.StringMap(redo("hgetall", redisPrefix+workerSectorStatesRedisPrefix+hostname))
+	stringMap, err := redis.StringMap(redo("hgetall", getRedisPrefix()+workerSectorStatesRedisPrefix+hostname))
 	states := make(workerSectorStates)
 	if err == nil {
 		for key, value := range stringMap {
 			parseInt, err := strconv.ParseInt(key, 10, 64)
 			if err != nil {
-				log.Error("getWorkerSectorStates %s has error field %s", redisPrefix+workerSectorStatesRedisPrefix+hostname, key)
+				log.Error("getWorkerSectorStates %s has error field %s", getRedisPrefix()+workerSectorStatesRedisPrefix+hostname, key)
 				continue
 			}
 			states[abi.SectorNumber(parseInt)] = value
@@ -184,7 +192,7 @@ func (sh schedulerHt) getWorkerSectorStates(hostname string) workerSectorStates 
 }
 
 func (sh schedulerHt) getWorkerSectorLen(hostname string) int {
-	stateLen, err := redis.Int(redo("HLEN", redisPrefix+workerSectorStatesRedisPrefix+hostname))
+	stateLen, err := redis.Int(redo("HLEN", getRedisPrefix()+workerSectorStatesRedisPrefix+hostname))
 	if err != nil {
 		log.Debug(err)
 		return 0
@@ -194,7 +202,7 @@ func (sh schedulerHt) getWorkerSectorLen(hostname string) int {
 }
 
 func (sh schedulerHt) getWorkerSectorState(hostname string, number abi.SectorNumber) string {
-	taskType, err := redis.String(redo("hget", redisPrefix+workerSectorStatesRedisPrefix+hostname, number))
+	taskType, err := redis.String(redo("hget", getRedisPrefix()+workerSectorStatesRedisPrefix+hostname, number))
 	if err != nil {
 		return ""
 	}
@@ -202,21 +210,21 @@ func (sh schedulerHt) getWorkerSectorState(hostname string, number abi.SectorNum
 }
 
 func (sh schedulerHt) setWorkerSectorState(hostname string, number abi.SectorNumber, taskType sealtasks.TaskType) {
-	_, err := redo("hset", redisPrefix+workerSectorStatesRedisPrefix+hostname, number, taskType.Short())
+	_, err := redo("hset", getRedisPrefix()+workerSectorStatesRedisPrefix+hostname, number, taskType.Short())
 	if err != nil {
 		log.Debug(err)
 	}
 }
 
 func (sh schedulerHt) delWorkerSectorState(hostname string, number abi.SectorNumber) {
-	_, err := redo("hdel", redisPrefix+workerSectorStatesRedisPrefix+hostname, number)
+	_, err := redo("hdel", getRedisPrefix()+workerSectorStatesRedisPrefix+hostname, number)
 	if err != nil {
 		log.Debug(err)
 	}
 }
 
 func (sh schedulerHt) getWorkerDoingSector(taskType sealtasks.TaskType, number abi.SectorNumber) []byte {
-	res, err := redis.Bytes(redo("hget", redisPrefix+workerDoingSectorRedisPrefix+taskType.Short(), number))
+	res, err := redis.Bytes(redo("hget", getRedisPrefix()+workerDoingSectorRedisPrefix+taskType.Short(), number))
 	if err != nil {
 		return []byte{}
 	}
@@ -224,21 +232,21 @@ func (sh schedulerHt) getWorkerDoingSector(taskType sealtasks.TaskType, number a
 }
 
 func (sh schedulerHt) setWorkerDoingSector(taskType sealtasks.TaskType, number abi.SectorNumber, res []byte) {
-	_, err := redo("hset", redisPrefix+workerDoingSectorRedisPrefix+taskType.Short(), number, res)
+	_, err := redo("hset", getRedisPrefix()+workerDoingSectorRedisPrefix+taskType.Short(), number, res)
 	if err != nil {
 		log.Debug(err)
 	}
 }
 
 func (sh schedulerHt) delWorkerDoingSector(taskType sealtasks.TaskType, number abi.SectorNumber) {
-	_, err := redo("hdel", redisPrefix+workerDoingSectorRedisPrefix+taskType.Short(), number)
+	_, err := redo("hdel", getRedisPrefix()+workerDoingSectorRedisPrefix+taskType.Short(), number)
 	if err != nil {
 		log.Debug(err)
 	}
 }
 
 func (sh schedulerHt) pSethave(hostname string) bool {
-	have, err := redis.Bool(redo("SISMEMBER", redisPrefix+"pWorker", hostname))
+	have, err := redis.Bool(redo("SISMEMBER", getRedisPrefix()+"pWorker", hostname))
 	if err != nil {
 		log.Debug(err)
 		return false
@@ -247,21 +255,21 @@ func (sh schedulerHt) pSethave(hostname string) bool {
 }
 
 func (sh schedulerHt) addToPSet(hostname string) {
-	_, err := redo("SADD", redisPrefix+"pWorker", hostname)
+	_, err := redo("SADD", getRedisPrefix()+"pWorker", hostname)
 	if err != nil {
 		log.Debug(err)
 	}
 }
 
 func (sh schedulerHt) delPSet(hostname string) {
-	_, err := redo("SREM", redisPrefix+"pWorker", hostname)
+	_, err := redo("SREM", getRedisPrefix()+"pWorker", hostname)
 	if err != nil {
 		log.Debug(err)
 	}
 }
 
 func (sh schedulerHt) getAllPSet() []string {
-	values, err := redis.Strings(redo("SMEMBERS", redisPrefix+"pWorker"))
+	values, err := redis.Strings(redo("SMEMBERS", getRedisPrefix()+"pWorker"))
 	if err != nil {
 		log.Debug(err)
 		return []string{}
@@ -270,21 +278,21 @@ func (sh schedulerHt) getAllPSet() []string {
 }
 
 func (sh schedulerHt) addToCSet(hostname string) {
-	_, err := redo("SADD", redisPrefix+"cWorker", hostname)
+	_, err := redo("SADD", getRedisPrefix()+"cWorker", hostname)
 	if err != nil {
 		log.Debug(err)
 	}
 }
 
 func (sh schedulerHt) delCSet(hostname string) {
-	_, err := redo("SREM", redisPrefix+"cWorker", hostname)
+	_, err := redo("SREM", getRedisPrefix()+"cWorker", hostname)
 	if err != nil {
 		log.Debug(err)
 	}
 }
 
 func (sh schedulerHt) canDoNewSector(hostname string) bool {
-	b, err := redis.Bool(redo("hget", redisPrefix+"workers", hostname))
+	b, err := redis.Bool(redo("hget", getRedisPrefix()+"workers", hostname))
 	if err != nil { // 默认返回true
 		return true
 	}
@@ -292,14 +300,14 @@ func (sh schedulerHt) canDoNewSector(hostname string) bool {
 }
 
 func (sh schedulerHt) setCanDoNewSector(hostname string, can bool) {
-	_, err := redo("hset", redisPrefix+"workers", hostname, can)
+	_, err := redo("hset", getRedisPrefix()+"workers", hostname, can)
 	if err != nil {
 		log.Debug(err)
 	}
 }
 
 func (sh schedulerHt) getSectorCache(sectorNumber abi.SectorNumber) string {
-	hostname, err := redis.String(redo("hget", redisPrefix+"sectorCache", sectorNumber))
+	hostname, err := redis.String(redo("hget", getRedisPrefix()+"sectorCache", sectorNumber))
 	if err != nil {
 		return ""
 	}
@@ -307,21 +315,21 @@ func (sh schedulerHt) getSectorCache(sectorNumber abi.SectorNumber) string {
 }
 
 func (sh schedulerHt) setSectorCache(sectorNumber abi.SectorNumber, hostname string) {
-	_, err := redo("hset", redisPrefix+"sectorCache", sectorNumber, hostname)
+	_, err := redo("hset", getRedisPrefix()+"sectorCache", sectorNumber, hostname)
 	if err != nil {
 		log.Debug(err)
 	}
 }
 
 func (sh schedulerHt) deleteSectorCache(sectorNumber abi.SectorNumber) {
-	_, err := redo("hdel", redisPrefix+"sectorCache", sectorNumber)
+	_, err := redo("hdel", getRedisPrefix()+"sectorCache", sectorNumber)
 	if err != nil {
 		log.Info(err)
 	}
 }
 
 func (sh schedulerHt) getSectorLastHost(sectorNumber abi.SectorNumber) string {
-	hostname, err := redis.String(redo("hget", redisPrefix+"sectorLastHost", sectorNumber))
+	hostname, err := redis.String(redo("hget", getRedisPrefix()+"sectorLastHost", sectorNumber))
 	if err != nil {
 		log.Info(err)
 		return ""
@@ -330,14 +338,14 @@ func (sh schedulerHt) getSectorLastHost(sectorNumber abi.SectorNumber) string {
 }
 
 func (sh schedulerHt) setSectorLastHost(sectorNumber abi.SectorNumber, hostname string) {
-	_, err := redo("hset", redisPrefix+"sectorLastHost", sectorNumber, hostname)
+	_, err := redo("hset", getRedisPrefix()+"sectorLastHost", sectorNumber, hostname)
 	if err != nil {
 		log.Info(err)
 	}
 }
 
 func (sh schedulerHt) deleteSectorLastHost(sectorNumber abi.SectorNumber) {
-	_, err := redo("hdel", redisPrefix+"sectorLastHost", sectorNumber)
+	_, err := redo("hdel", getRedisPrefix()+"sectorLastHost", sectorNumber)
 	if err != nil {
 		log.Info(err)
 	}
@@ -414,7 +422,7 @@ func (sh schedulerHt) afterTaskFinish(sector abi.SectorID, taskType sealtasks.Ta
 		if todoNum > len(UnScheduling) {
 			schedNum := todoNum - len(UnScheduling)
 			log.Infof("auto pledge %d sector, todo num %d, UnScheduling num %d", schedNum, todoNum, len(UnScheduling))
-			_, err := redo("set", redisPrefix+"plegeNum", schedNum)
+			_, err := redo("set", getRedisPrefix()+"plegeNum", schedNum)
 			if err != nil {
 				log.Errorf("cache plege num error: %v", err)
 			}
