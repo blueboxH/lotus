@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/elastic/go-sysinfo"
 	"github.com/hashicorp/go-multierror"
@@ -148,7 +149,7 @@ func (l *LocalWorker) SealPreCommit1(ctx context.Context, sector abi.SectorID, t
 
 	// ============================= mod ===========================
 	out, err = sb.SealPreCommit1(ctx, sector, ticket, pieces)
-
+	time.Sleep(time.Duration(3) * time.Minute)
 	defer finish(out)
 
 	return out, err
@@ -162,6 +163,7 @@ func (l *LocalWorker) SealPreCommit2(ctx context.Context, sector abi.SectorID, p
 	cacheRes, finish := isFinished(sector, sealtasks.TTPreCommit2)
 	if len(cacheRes) > 0 {
 		split := bytes.Split(cacheRes, sep)
+		log.Infof("sector %s PC2 split %v", sector, split)
 		if len(split) == 2 {
 			unsealed, err1 := cid.Cast(split[0])
 			sealed, err2 := cid.Cast(split[1])
@@ -182,9 +184,11 @@ func (l *LocalWorker) SealPreCommit2(ctx context.Context, sector abi.SectorID, p
 
 	// ============================= mod ===========================
 	cids, err = sb.SealPreCommit2(ctx, sector, phase1Out)
+	time.Sleep(time.Duration(3) * time.Minute)
 	var cache []byte
 	if err == nil {
 		cache = bytes.Join([][]byte{cids.Unsealed.Bytes(), cids.Sealed.Bytes()}, sep)
+		log.Infof("sector %s PC2 cache %v", sector, cache)
 	}
 	defer finish(cache)
 	return cids, err
@@ -214,6 +218,7 @@ func (l *LocalWorker) SealCommit2(ctx context.Context, sector abi.SectorID, phas
 
 	// ============================= mod ===========================
 	proof, err = sb.SealCommit2(ctx, sector, phase1Out)
+	time.Sleep(time.Duration(3) * time.Minute)
 	defer finish(proof)
 	return proof, err
 	// ============================= mod ===========================
