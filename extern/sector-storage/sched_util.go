@@ -22,7 +22,7 @@ var DoingSectors map[abi.SectorNumber]sealtasks.TaskType = make(map[abi.SectorNu
 
 type workerSectorStates map[abi.SectorNumber]string
 
-func init() {
+func initRedis() {
 
 	host, db := getRedisPath()
 	auth := ""
@@ -82,6 +82,10 @@ func getRedisPath() (string, int) {
 
 // 在pool加入TestOnBorrow方法来去除扫描坏连接
 func redo(command string, opt ...interface{}) (interface{}, error) {
+	if RedisClient == nil {
+		initRedis()
+	}
+
 	rd := RedisClient.Get()
 	defer rd.Close()
 
