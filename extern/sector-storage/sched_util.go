@@ -376,7 +376,7 @@ func (sh schedulerHt) afterTaskFinish(sector abi.SectorID, taskType sealtasks.Ta
 	log.Infof("sector %s %s task done at host %s", sector, taskType.Short(), hostname)
 
 	// sector cache
-	if sealtasks.TTPreCommit1 == taskType || sealtasks.TTAddPieceHT == taskType { // p1 或者 apht 阶段加入 map
+	if sealtasks.TTAddPieceHT == taskType { // apht 阶段完成加入 map
 		log.Infof("cache log: sector %s %s => host %s", sector, taskType.Short(), hostname)
 		sh.setSectorCache(sector.Number, hostname)
 	}
@@ -449,6 +449,11 @@ func (sh schedulerHt) afterScheduled(sector abi.SectorID, taskType sealtasks.Tas
 	if sealtasks.TTPreCommit1 == taskType || sealtasks.TTAddPieceHT == taskType { // p1 或者 apht 说明已经进入了调用
 		delete(UnScheduling, sector.Number)
 	}
+
+	if sealtasks.TTPreCommit1 == taskType && sh.getSectorCache(sector.Number) == "" { // 这里针对官方交易, p1开始调度, 却没有cache, 加入map
+		log.Infof("cache log: sector %s %s => host %s", sector, taskType.Short(), hostname)
+		sh.setSectorCache(sector.Number, hostname)
+	}
 }
 
 // worker 在开始做p1 p2 等耗时任务时候, 将任务类型值写入redis, 表示开始, 结束时删除此值, 另外, 将运行结果值写入redis
@@ -465,7 +470,7 @@ func isFinished(sector abi.SectorID, taskType sealtasks.TaskType) (cacheRes []by
 	return cacheRes, func(res []byte) {
 		if len(res) > 0 {
 			SchedulerHt.setWorkerDoingSector(taskType, sector.Number, res)
-			log.Infof("sector %s %s finish, result %v cache to redis", sector, taskType, string(res))
+			log.Infof("sector %s %s finish, result cache to redis", sector, taskType)
 		}
 		delete(DoingSectors, sector.Number)
 	}

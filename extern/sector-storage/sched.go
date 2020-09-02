@@ -741,7 +741,7 @@ func (sh *scheduler) runWorker(wid WorkerID) {
 			worker.wndLk.Lock()
 
 			windowsRequested -= sh.workerCompactWindows(worker, wid)
-
+			log.Infof(">>>>>>>>>>>>>>>>>>>> worker %s activeWindows %v", worker.info.Hostname, worker.activeWindows) // todo: 需不需要对todo进行排序
 		assignLoop:
 			// process windows in order
 			for len(worker.activeWindows) > 0 {
@@ -955,7 +955,7 @@ func (sh *scheduler) dropWorker(wid WorkerID) {
 	// ==========================================      mod     ===================================
 	SchedulerHt.delPSet(w.info.Hostname)
 	SchedulerHt.delCSet(w.info.Hostname)
-	log.Infof("dropWorker %s and delete from pPet and cSet", w.info.Hostname)
+	log.Infof("dropWorker %s and delete from pPet and cSet, activeWindows %v", w.info.Hostname, w.activeWindows)
 	// ==========================================      mod     ===================================
 
 	delete(sh.workers, wid)
