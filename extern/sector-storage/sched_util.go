@@ -27,6 +27,9 @@ func initRedis() {
 	host, db := getRedisPath()
 	auth := ""
 
+	if RedisClient != nil {
+		return
+	}
 	RedisClient = &redis.Pool{
 		MaxIdle:     100,
 		MaxActive:   4000,
