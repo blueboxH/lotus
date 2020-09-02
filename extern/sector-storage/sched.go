@@ -741,7 +741,7 @@ func (sh *scheduler) runWorker(wid WorkerID) {
 
 					sh.workersLk.RLock()
 					worker.lk.Lock()
-					ok := worker.preparing.canHandleRequest(needRes, wid, worker.info.Resources)
+					ok := worker.preparing.canHandleRequest(needRes, wid, "startPreparing", worker.info.Resources)
 					worker.lk.Unlock()
 
 					if !ok {
