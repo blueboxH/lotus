@@ -14,7 +14,7 @@ import (
 
 var RedisClient *redis.Pool
 var sectorNumPerWorker int
-var redisPrefix string // todo
+var redisPrefix string
 var workerSectorStatesRedisPrefix = "workerSectorStates:"
 var workerDoingSectorRedisPrefix = "workerDoingSector:"
 var SchedulerHt schedulerHt = schedulerHt{}
@@ -23,7 +23,7 @@ var DoingSectors map[abi.SectorNumber]sealtasks.TaskType = make(map[abi.SectorNu
 type workerSectorStates map[abi.SectorNumber]string
 
 func initRedis() {
-
+	log.Debug("start init redis...")
 	host, db := getRedisPath()
 	auth := ""
 
@@ -37,6 +37,7 @@ func initRedis() {
 		Dial: func() (redis.Conn, error) {
 			c, err := redis.Dial("tcp", host, redis.DialPassword(auth), redis.DialDatabase(db))
 			if nil != err {
+				log.Error("create redis pool error: %v", err)
 				return nil, err
 			}
 			return c, nil
@@ -464,7 +465,7 @@ func isFinished(sector abi.SectorID, taskType sealtasks.TaskType) (cacheRes []by
 	return cacheRes, func(res []byte) {
 		if len(res) > 0 {
 			SchedulerHt.setWorkerDoingSector(taskType, sector.Number, res)
-			log.Infof("sector %s %s finish, result %v cache to redis", sector, taskType, res)
+			log.Infof("sector %s %s finish, result %v cache to redis", sector, taskType, string(res))
 		}
 		delete(DoingSectors, sector.Number)
 	}
