@@ -22,7 +22,7 @@ var DoingSectors map[abi.SectorNumber]sealtasks.TaskType = make(map[abi.SectorNu
 
 type workerSectorStates map[abi.SectorNumber]string
 
-func initRedis() {
+func init() {
 
 	host, db := getRedisPath()
 	auth := ""

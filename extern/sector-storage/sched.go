@@ -145,7 +145,6 @@ type workerResponse struct {
 }
 
 func newScheduler(spt abi.RegisteredSealProof) *scheduler {
-	initRedis()
 	return &scheduler{
 		spt: spt,
 
