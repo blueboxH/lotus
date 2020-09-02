@@ -21,9 +21,11 @@ type schedPrioCtxKey int
 var SchedPriorityKey schedPrioCtxKey
 var DefaultSchedPriority = 0
 var SelectorTimeout = 5 * time.Second
-var htSchedTasks = []sealtasks.TaskType{sealtasks.TTCommit1, sealtasks.TTPreCommit1, sealtasks.TTPreCommit2} // 列表顺序不能打乱
-var UnScheduling = make(map[abi.SectorNumber]struct{})                                                       // 已添加却未调度给P worker 的列表
-var APHTSets = make(map[abi.SectorNumber]struct{})                                                           // 已添加却未调度APHT的上去编号
+var htSchedTasks = []sealtasks.TaskType{sealtasks.TTFinalize, sealtasks.TTCommit1, sealtasks.TTPreCommit2, sealtasks.TTPreCommit1} // 列表顺序不能打乱
+var UnScheduling = make(map[abi.SectorNumber]struct{})                                                                             // 已添加却未调度给P worker 的列表
+var APHTSets = make(map[abi.SectorNumber]struct{})                                                                                 // 已添加却未调度APHT的上去编号
+var InitWait = 3 * time.Second
+
 var (
 	SchedWindows = 2
 )
@@ -138,7 +140,6 @@ type workerResponse struct {
 }
 
 func newScheduler(spt abi.RegisteredSealProof) *scheduler {
-	initRedis()
 	return &scheduler{
 		spt: spt,
 
@@ -151,7 +152,7 @@ func newScheduler(spt abi.RegisteredSealProof) *scheduler {
 		workerClosing: make(chan WorkerID),
 
 		schedule:       make(chan *workerRequest),
-		windowRequests: make(chan *schedWindowRequest),
+		windowRequests: make(chan *schedWindowRequest, 20),
 
 		schedQueue: &requestQueue{},
 		htSchedMap: make(map[string]map[sealtasks.TaskType]map[abi.SectorID]*workerRequest),
@@ -232,7 +233,12 @@ func (sh *scheduler) runSched() {
 
 	go sh.runWorkerWatcher()
 
+	iw := time.After(InitWait)
+	var initialised bool
+
 	for {
+		var doSched bool
+
 		select {
 		case w := <-sh.newWorkers:
 			sh.newWorker(w)
@@ -242,63 +248,90 @@ func (sh *scheduler) runSched() {
 
 		case req := <-sh.schedule:
 			// ==========================================      mod     ===================================
-			// p1 p2 c1 且已经缓存过, 存入自己维护的map, c2 也自己维护
-			cacheHostname := SchedulerHt.getSectorCache(req.sector.Number)
-			htSched := false
-			for _, task := range htSchedTasks {
-				if task == req.taskType {
-					htSched = true
-					break
-				}
-			}
-
-			if htSched && cacheHostname != "" {
-				shedMap := sh.htSchedMap[cacheHostname]
-				if shedMap == nil {
-					shedMap = make(map[sealtasks.TaskType]map[abi.SectorID]*workerRequest)
-					sh.htSchedMap[cacheHostname] = shedMap
-				}
-				taskMap := shedMap[req.taskType]
-				if taskMap == nil {
-					taskMap = make(map[abi.SectorID]*workerRequest)
-					sh.htSchedMap[cacheHostname][req.taskType] = taskMap
-				}
-				taskMap[req.sector] = req
-				log.Debugf("add sector %s %s to htSchedMap", req.sector, req.taskType.Short())
-
-				sh.tryHtSched()
-			} else {
-				sh.schedQueue.Push(req)
-				sh.trySched()
-			}
-
+			sh.pushWorkerRequest(req)
 			// ==========================================      mod     ===================================
+			doSched = true
 			if sh.testSync != nil {
 				sh.testSync <- struct{}{}
 			}
 		case req := <-sh.windowRequests:
 			sh.openWindows = append(sh.openWindows, req)
-			sh.trySched()
+			doSched = true
 
-			// ==========================================      mod     ===================================
-			worker, found := sh.workers[req.worker]
-			if found {
-				if SchedulerHt.pSethave(worker.info.Hostname) {
-					sh.tryHtSched()
-				}
-			} else {
-				log.Error("worker %d not fond", worker)
-			}
-			// ==========================================      mod     ===================================
 		case ireq := <-sh.info:
 			ireq(sh.diag())
 
+		case <-iw:
+			initialised = true
+			iw = nil
+			doSched = true
 		case <-sh.closing:
 			sh.schedClose()
 			return
 		}
+
+		if doSched && initialised {
+			// First gather any pending tasks, so we go through the scheduling loop
+			// once for every added task
+		loop:
+			for {
+				select {
+				case req := <-sh.schedule:
+					log.Debugf("================ get sector %s %s at loop", req.sector, req.taskType.Short())
+					// ==========================================      mod     ===================================
+					sh.pushWorkerRequest(req)
+					// ==========================================      mod     ===================================
+					if sh.testSync != nil {
+						sh.testSync <- struct{}{}
+					}
+				case req := <-sh.windowRequests:
+					sh.openWindows = append(sh.openWindows, req)
+				default:
+					break loop
+				}
+			}
+
+			sh.tryHtSched() // 由于3秒判断一次, 所以这里就不对两种类型进行判断
+			sh.trySched()
+		}
+
 	}
 }
+
+// ==========================================      mod     ===================================
+func (sh *scheduler) pushWorkerRequest(req *workerRequest) {
+
+	// p1 p2 c1 且已经缓存过, 存入自己维护的map, c2 也自己维护
+	cacheHostname := SchedulerHt.getSectorCache(req.sector.Number)
+	htSched := false
+	for _, task := range htSchedTasks {
+		if task == req.taskType {
+			htSched = true
+			break
+		}
+	}
+
+	if htSched && cacheHostname != "" {
+		shedMap := sh.htSchedMap[cacheHostname]
+		if shedMap == nil {
+			shedMap = make(map[sealtasks.TaskType]map[abi.SectorID]*workerRequest)
+			sh.htSchedMap[cacheHostname] = shedMap
+		}
+		taskMap := shedMap[req.taskType]
+		if taskMap == nil {
+			taskMap = make(map[abi.SectorID]*workerRequest)
+			sh.htSchedMap[cacheHostname][req.taskType] = taskMap
+		}
+		taskMap[req.sector] = req
+		log.Debugf("add sector %s %s to htSchedMap", req.sector, req.taskType.Short())
+
+	} else {
+		sh.schedQueue.Push(req)
+		log.Debugf("add sector %s %s to schedQueue", req.sector, req.taskType.Short())
+	}
+}
+
+// ==========================================      mod     ===================================
 
 func (sh *scheduler) diag() SchedDiagInfo {
 	var out SchedDiagInfo
@@ -414,7 +447,7 @@ func (sh *scheduler) trySched() {
 				// ==========================================      mod     ===================================
 
 				// TODO: allow bigger windows
-				if !windows[wnd].allocated.canHandleRequest(needRes, windowRequest.worker, worker.info.Resources) {
+				if !windows[wnd].allocated.canHandleRequest(needRes, windowRequest.worker, "schedAcceptable", worker.info.Resources) {
 					continue
 				}
 
@@ -467,7 +500,7 @@ func (sh *scheduler) trySched() {
 
 	wg.Wait()
 
-	log.Debugf("SCHED windows: %+v", windows)
+	//log.Debugf("SCHED windows: %+v", windows)
 	log.Debugf("SCHED Acceptable win: %+v", acceptableWindows)
 
 	// Step 2
@@ -485,7 +518,7 @@ func (sh *scheduler) trySched() {
 			log.Debugf("SCHED try assign sqi:%d sector %d to window %d", sqi, task.sector.Number, wnd)
 
 			// TODO: allow bigger windows
-			if !windows[wnd].allocated.canHandleRequest(needRes, wid, wr) {
+			if !windows[wnd].allocated.canHandleRequest(needRes, wid, "schedAssign", wr) {
 				continue
 			}
 
@@ -567,7 +600,6 @@ func (sh *scheduler) tryHtSched() {
 		hostname := worker.info.Hostname
 		requestQueueMap := sh.htSchedMap[hostname]
 		schedWindow := schedWindow{}
-		log.Infof("try SCHED ASSIGNED host %s task", hostname)
 
 		for _, schedTask := range htSchedTasks {
 			needRes := ResourceTable[schedTask][sh.spt]
@@ -577,14 +609,28 @@ func (sh *scheduler) tryHtSched() {
 			log.Debugf("start filter %s %s task, task len %d", hostname, schedTask.Short(), len(requestQueueMap[schedTask]))
 			for sector, task := range requestQueueMap[schedTask] {
 				// TODO: allow bigger windows
-				if !schedWindow.allocated.canHandleRequest(needRes, openWindow.worker, worker.info.Resources) {
+				if !schedWindow.allocated.canHandleRequest(needRes, openWindow.worker, "htschedAssign", worker.info.Resources) {
 					continue
 				}
 
 				schedWindow.allocated.add(worker.info.Resources, needRes)
 
+				rpcCtx, cancel := context.WithTimeout(task.ctx, SelectorTimeout)
+				ok, err := task.sel.Ok(rpcCtx, task.taskType, sh.spt, worker)
+				cancel()
+				if err != nil {
+					log.Errorf("tryHtSched req.sel.Ok error: %+v", err)
+					continue
+				}
+
+				if !ok {
+					continue
+				}
+
 				schedWindow.todo = append(schedWindow.todo, task)
+
 				SchedulerHt.afterScheduled(task.sector, task.taskType, hostname)
+
 				log.Infof("tryHtSched SCHED ASSIGNED sector %d taskType %s to host %s", sector, task.taskType.Short(), hostname)
 				delete(requestQueueMap[schedTask], sector)
 
@@ -774,6 +820,7 @@ func (sh *scheduler) assignWorker(taskDone chan struct{}, wid WorkerID, w *worke
 			// ==========================================      mod     ===================================
 			if err == nil {
 				SchedulerHt.afterTaskFinish(req.sector, req.taskType, w.info.Hostname)
+				SchedulerHt.delWorkerDoingSector(req.taskType, req.sector.Number)
 			}
 			// ==========================================      mod     ===================================
 

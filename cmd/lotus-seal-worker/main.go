@@ -411,7 +411,16 @@ func watchMinerConn(ctx context.Context, cctx *cli.Context, nodeApi api.StorageM
 			return // graceful shutdown
 		}
 
-		log.Warnf("Connection with miner node lost, restarting")
+		// ============================= mod ===========================
+		for len(sectorstorage.DoingSectors) > 0 {
+			log.Warnf("Connection with miner node lost, after task finish will restarting: %v", sectorstorage.DoingSectors)
+			iw := time.After(1 * time.Minute) // todo: 测试 1分钟一次, 上线改为5分钟
+			select {
+			case <-iw:
+				iw = nil
+			}
+		}
+		// ============================= mod ===========================
 
 		exe, err := os.Executable()
 		if err != nil {
