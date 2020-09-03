@@ -620,8 +620,6 @@ func (sh *scheduler) tryHtSched() {
 					continue
 				}
 
-				schedWindow.allocated.add(worker.info.Resources, needRes)
-
 				rpcCtx, cancel := context.WithTimeout(task.ctx, SelectorTimeout)
 				ok, err := task.sel.Ok(rpcCtx, task.taskType, sh.spt, worker)
 				cancel()
@@ -636,10 +634,11 @@ func (sh *scheduler) tryHtSched() {
 
 				schedWindow.todo = append(schedWindow.todo, task)
 
-				SchedulerHt.afterScheduled(task.sector, task.taskType, hostname)
-
-				log.Infof("tryHtSched SCHED ASSIGNED sector %d taskType %s to host %s", sector, task.taskType.Short(), hostname)
+				schedWindow.allocated.add(worker.info.Resources, needRes)
+				log.Infof("worker %s after sched Resources %v", hostname, worker.info.Resources)
 				delete(requestQueueMap[schedTask], sector)
+				log.Infof("tryHtSched SCHED ASSIGNED sector %d taskType %s to host %s", sector, task.taskType.Short(), hostname)
+				SchedulerHt.afterScheduled(task.sector, task.taskType, hostname)
 
 				if schedTask == sealtasks.TTPreCommit2 {
 					// 由于p2 并行, 一次取一个
@@ -741,8 +740,9 @@ func (sh *scheduler) runWorker(wid WorkerID) {
 			sh.workersLk.RLock()
 			worker.wndLk.Lock()
 
+			log.Infof(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> befor workerCompactWindows activeWindow %v", worker.activeWindows)
 			windowsRequested -= sh.workerCompactWindows(worker, wid)
-
+			log.Infof(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> after workerCompactWindows activeWindow %v", worker.activeWindows)
 		assignLoop:
 			// process windows in order
 			for len(worker.activeWindows) > 0 {
@@ -956,7 +956,7 @@ func (sh *scheduler) dropWorker(wid WorkerID) {
 	// ==========================================      mod     ===================================
 	SchedulerHt.delPSet(w.info.Hostname)
 	SchedulerHt.delCSet(w.info.Hostname)
-	log.Infof("dropWorker %s and delete from pPet and cSet", w.info.Hostname)
+	log.Infof("dropWorker %s and delete from pPet and cSet, activeWindows: %v", w.info.Hostname, w.activeWindows)
 	// ==========================================      mod     ===================================
 	sh.workerCleanup(wid, w)
 

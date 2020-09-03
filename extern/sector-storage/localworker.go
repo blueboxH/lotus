@@ -171,7 +171,7 @@ func (l *LocalWorker) SealPreCommit2(ctx context.Context, sector abi.SectorID, p
 			if err1 != nil && err2 != nil {
 				return storage2.SectorCids{Unsealed: unsealed, Sealed: sealed}, nil
 			} else {
-				log.Infof("sector %s %s get cacheRes from redis decode cid error, redo it: %s", sector, sealtasks.TTPreCommit2.Short(), cacheRes)
+				log.Infof("sector %s %s get cacheRes from redis decode cid error, redo it: %s, err1: %v, err2 %v", sector, sealtasks.TTPreCommit2.Short(), cacheRes, err1, err2)
 			}
 		} else {
 			log.Infof("sector %s %s get cacheRes from redis decode error, redo it: %s", sector, sealtasks.TTPreCommit2.Short(), cacheRes)
