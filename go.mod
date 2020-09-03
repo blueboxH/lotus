@@ -3,6 +3,8 @@ module github.com/filecoin-project/lotus
 go 1.14
 
 replace github.com/supranational/blst => github.com/supranational/blst v0.1.2-alpha.1
+replace github.com/filecoin-project/go-jsonrpc => github.com/blueboxH/go-jsonrpc v0.1.2-0.20200903093403-5e10d7502002
+
 
 require (
 	contrib.go.opencensus.io/exporter/jaeger v0.1.0
@@ -109,7 +111,7 @@ require (
 	github.com/multiformats/go-multibase v0.0.3
 	github.com/multiformats/go-multihash v0.0.14
 	github.com/opentracing/opentracing-go v1.2.0
-	github.com/prometheus/common v0.10.0
+	github.com/prometheus/common v0.10.0 // indirect
 	github.com/raulk/clock v1.1.0
 	github.com/stretchr/testify v1.6.1
 	github.com/supranational/blst v0.1.1
