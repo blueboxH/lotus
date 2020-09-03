@@ -206,8 +206,8 @@ func (sh schedulerHt) getWorkerSectorState(hostname string, number abi.SectorNum
 	return taskType
 }
 
-func (sh schedulerHt) setWorkerSectorState(hostname string, number abi.SectorNumber, taskType sealtasks.TaskType) {
-	_, err := redo("hset", getRedisPrefix()+workerSectorStatesRedisPrefix+hostname, number, taskType.Short())
+func (sh schedulerHt) setWorkerSectorState(hostname string, number abi.SectorNumber, taskType sealtasks.TaskType, status string) {
+	_, err := redo("hset", getRedisPrefix()+workerSectorStatesRedisPrefix+hostname, number, taskType.Short()+"-"+status)
 	if err != nil {
 		log.Debug(err)
 	}
@@ -432,7 +432,7 @@ func (sh schedulerHt) afterScheduled(sector abi.SectorID, taskType sealtasks.Tas
 	// add current to state
 	if (sealtasks.TTAddPieceHT == taskType || sealtasks.TTPreCommit1 == taskType || sealtasks.TTPreCommit2 == taskType) && sh.getWorkerMaxSectorNum(hostname) > 0 {
 
-		sh.setWorkerSectorState(hostname, sector.Number, taskType)
+		sh.setWorkerSectorState(hostname, sector.Number, taskType, "scheduled")
 		log.Debugf("afterScheduled do: worker %s add sector %s %s to HandingSector", hostname, sector, taskType.Short())
 		if sh.getWorkerSectorLen(hostname) >= sh.getWorkerMaxSectorNum(hostname) {
 			log.Debugf("host %s worker active from %t to false", hostname, sh.canDoNewSector(hostname))
@@ -463,7 +463,8 @@ func (sh schedulerHt) afterScheduled(sector abi.SectorID, taskType sealtasks.Tas
 
 // worker 在开始做p1 p2 等耗时任务时候, 将任务类型值写入redis, 表示开始, 结束时删除此值, 另外, 将运行结果值写入redis
 func isFinished(sector abi.SectorID, taskType sealtasks.TaskType) (cacheRes []byte, finish func(res []byte)) {
-
+	hostname, _ := os.Hostname()
+	SchedulerHt.setWorkerSectorState(hostname, sector.Number, taskType, "running")
 	cacheRes = SchedulerHt.getWorkerDoingSector(taskType, sector.Number)
 
 	if len(cacheRes) > 0 {
@@ -478,5 +479,6 @@ func isFinished(sector abi.SectorID, taskType sealtasks.TaskType) (cacheRes []by
 			log.Infof("sector %s %s finish, result cache to redis: %s", sector, taskType, res)
 		}
 		delete(DoingSectors, sector.Number)
+		SchedulerHt.setWorkerSectorState(hostname, sector.Number, taskType, "finish")
 	}
 }

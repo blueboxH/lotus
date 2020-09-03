@@ -27,7 +27,6 @@ var htSchedTasks = []sealtasks.TaskType{sealtasks.TTFinalize, sealtasks.TTCommit
 var UnScheduling = make(map[abi.SectorNumber]struct{})                                                                             // 已添加却未调度给P worker 的列表
 var APHTSets = make(map[abi.SectorNumber]struct{})                                                                                 // 已添加却未调度APHT的上去编号
 
-
 var (
 	SchedWindows = 2
 )
@@ -895,7 +894,7 @@ func (sh *scheduler) assignWorker(taskDone chan struct{}, wid WorkerID, w *worke
 
 			go func() { // todo delete
 				time.Sleep(time.Duration(1) * time.Minute)
-				sh.dropWorker(wid)
+				sh.workerClosing <- wid
 			}()
 			err = req.work(req.ctx, w.wt.worker(w.w))
 			// ==========================================      mod     ===================================
