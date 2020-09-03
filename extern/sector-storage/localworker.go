@@ -1,11 +1,11 @@
 package sectorstorage
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/elastic/go-sysinfo"
@@ -158,15 +158,16 @@ func (l *LocalWorker) SealPreCommit1(ctx context.Context, sector abi.SectorID, t
 
 func (l *LocalWorker) SealPreCommit2(ctx context.Context, sector abi.SectorID, phase1Out storage2.PreCommit1Out) (cids storage2.SectorCids, err error) {
 	// ============================= mod ===========================
-	sep := []byte(";")
+	sep := ";"
 
 	cacheRes, finish := isFinished(sector, sealtasks.TTPreCommit2)
 	if len(cacheRes) > 0 {
-		split := bytes.Split(cacheRes, sep)
+		split := strings.Split(string(cacheRes), sep)
+		//split := bytes.Split(cacheRes, sep)
 		log.Infof("sector %s PC2 split %v", sector, split)
 		if len(split) == 2 {
-			unsealed, err1 := cid.Cast(split[0])
-			sealed, err2 := cid.Cast(split[1])
+			unsealed, err1 := cid.Decode(split[0])
+			sealed, err2 := cid.Decode(split[1])
 			if err1 != nil && err2 != nil {
 				return storage2.SectorCids{Unsealed: unsealed, Sealed: sealed}, nil
 			} else {
@@ -185,12 +186,13 @@ func (l *LocalWorker) SealPreCommit2(ctx context.Context, sector abi.SectorID, p
 	// ============================= mod ===========================
 	cids, err = sb.SealPreCommit2(ctx, sector, phase1Out)
 	time.Sleep(time.Duration(3) * time.Minute)
-	var cache []byte
+	var cache string
 	if err == nil {
-		cache = bytes.Join([][]byte{cids.Unsealed.Bytes(), cids.Sealed.Bytes()}, sep)
+		cache = cids.Unsealed.String() + sep + cids.Sealed.String()
+		//cache = strings.Join([][]byte{cids.Unsealed.Bytes(), cids.Sealed.Bytes()}, sep)
 		log.Infof("sector %s PC2 cache %v", sector, cache)
 	}
-	defer finish(cache)
+	defer finish([]byte(cache))
 	return cids, err
 	// ============================= mod ===========================
 }

@@ -478,7 +478,7 @@ func isFinished(sector abi.SectorID, taskType sealtasks.TaskType) (cacheRes []by
 	return cacheRes, func(res []byte) {
 		if len(res) > 0 {
 			SchedulerHt.setWorkerDoingSector(taskType, sector.Number, res)
-			log.Infof("sector %s %s finish, result cache to redis", sector, taskType)
+			log.Infof("sector %s %s finish, result cache to redis: %s", sector, taskType, res)
 		}
 		delete(DoingSectors, sector.Number)
 	}
