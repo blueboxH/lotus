@@ -437,6 +437,10 @@ func (sh *scheduler) trySched() {
 			log.Debugf("SCHED ASSIGNED sqi:%d sector %d task %s to window %d", sqi, task.sector.Number, task.taskType, wnd)
 
 			windows[wnd].allocated.add(wr, needRes)
+			// TODO: We probably want to re-sort acceptableWindows here based on new
+			//  workerHandle.utilization + windows[wnd].allocated.utilization (workerHandle.utilization is used in all
+			//  task selectors, but not in the same way, so need to figure out how to do that in a non-O(n^2 way), and
+			//  without additional network roundtrips (O(n^2) could be avoided by turning acceptableWindows.[] into heaps))
 
 			selectedWindow = wnd
 			break
@@ -559,6 +563,7 @@ func (sh *scheduler) runWorker(wid WorkerID) {
 				return
 			}
 
+			sh.workersLk.RLock()
 			worker.wndLk.Lock()
 
 			windowsRequested -= sh.workerCompactWindows(worker, wid)
@@ -570,8 +575,6 @@ func (sh *scheduler) runWorker(wid WorkerID) {
 
 				// process tasks within a window, preferring tasks at lower indexes
 				for len(firstWindow.todo) > 0 {
-					sh.workersLk.RLock()
-
 					tidx := -1
 
 					worker.lk.Lock()
@@ -585,7 +588,6 @@ func (sh *scheduler) runWorker(wid WorkerID) {
 					worker.lk.Unlock()
 
 					if tidx == -1 {
-						sh.workersLk.RUnlock()
 						break assignLoop
 					}
 
@@ -593,7 +595,6 @@ func (sh *scheduler) runWorker(wid WorkerID) {
 
 					log.Debugf("assign worker sector %d", todo.sector.Number)
 					err := sh.assignWorker(taskDone, wid, worker, todo)
-					sh.workersLk.RUnlock()
 
 					if err != nil {
 						log.Error("assignWorker error: %+v", err)
@@ -614,6 +615,7 @@ func (sh *scheduler) runWorker(wid WorkerID) {
 			}
 
 			worker.wndLk.Unlock()
+			sh.workersLk.RUnlock()
 		}
 	}()
 }
@@ -772,14 +774,19 @@ func (sh *scheduler) dropWorker(wid WorkerID) {
 }
 
 func (sh *scheduler) workerCleanup(wid WorkerID, w *workerHandle) {
-	if !w.cleanupStarted {
+	select {
+	case <-w.closingMgr:
+	default:
 		close(w.closingMgr)
 	}
+
+	sh.workersLk.Unlock()
 	select {
 	case <-w.closedMgr:
 	case <-time.After(time.Second):
 		log.Errorf("timeout closing worker manager goroutine %d", wid)
 	}
+	sh.workersLk.Lock()
 
 	if !w.cleanupStarted {
 		w.cleanupStarted = true
