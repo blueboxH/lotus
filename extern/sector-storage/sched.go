@@ -740,9 +740,9 @@ func (sh *scheduler) runWorker(wid WorkerID) {
 			sh.workersLk.RLock()
 			worker.wndLk.Lock()
 
-			log.Infof(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> befor workerCompactWindows activeWindow %v", worker.activeWindows)
+			log.Infof(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> befor workerCompactWindows activeWindow %v", &worker.activeWindows)
 			windowsRequested -= sh.workerCompactWindows(worker, wid)
-			log.Infof(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> after workerCompactWindows activeWindow %v", worker.activeWindows)
+			log.Infof(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> after workerCompactWindows activeWindow %v", &worker.activeWindows)
 		assignLoop:
 			// process windows in order
 			for len(worker.activeWindows) > 0 {
@@ -892,10 +892,10 @@ func (sh *scheduler) assignWorker(taskDone chan struct{}, wid WorkerID, w *worke
 			case <-sh.closing:
 			}
 
-			go func() { // todo delete
-				time.Sleep(time.Duration(1) * time.Minute)
-				sh.watchClosing <- wid
-			}()
+			//go func() { // todo delete
+			//	time.Sleep(time.Duration(1) * time.Minute)
+			//	sh.watchClosing <- wid
+			//}()
 			err = req.work(req.ctx, w.wt.worker(w.w))
 			// ==========================================      mod     ===================================
 			if err == nil {
