@@ -198,7 +198,7 @@ func (m *Manager) AddWorker(ctx context.Context, w Worker) error {
 	if _, supported := tasks[sealtasks.TTCommit2]; supported {
 		SchedulerHt.addToCSet(hostname)
 	}
-
+	log.Infof("add worker %s to miner, tasks %v", hostname, tasks)
 	// ==========================================      mod     ===================================
 
 	m.sched.newWorkers <- &workerHandle{

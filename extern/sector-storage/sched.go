@@ -145,7 +145,6 @@ type workerResponse struct {
 }
 
 func newScheduler(spt abi.RegisteredSealProof) *scheduler {
-	initRedis()
 	return &scheduler{
 		spt: spt,
 
@@ -742,7 +741,7 @@ func (sh *scheduler) runWorker(wid WorkerID) {
 			worker.wndLk.Lock()
 
 			windowsRequested -= sh.workerCompactWindows(worker, wid)
-
+			log.Infof(">>>>>>>>>>>>>>>>>>>> worker %s activeWindows %v", worker.info.Hostname, worker.activeWindows) // todo: 需不需要对todo进行排序
 		assignLoop:
 			// process windows in order
 			for len(worker.activeWindows) > 0 {
@@ -899,6 +898,7 @@ func (sh *scheduler) assignWorker(taskDone chan struct{}, wid WorkerID, w *worke
 			// ==========================================      mod     ===================================
 			if err == nil {
 				SchedulerHt.afterTaskFinish(req.sector, req.taskType, w.info.Hostname)
+				SchedulerHt.delWorkerDoingSector(req.taskType, req.sector.Number)
 			}
 			// ==========================================      mod     ===================================
 
@@ -955,7 +955,7 @@ func (sh *scheduler) dropWorker(wid WorkerID) {
 	// ==========================================      mod     ===================================
 	SchedulerHt.delPSet(w.info.Hostname)
 	SchedulerHt.delCSet(w.info.Hostname)
-	log.Infof("dropWorker %s and delete from pPet and cSet", w.info.Hostname)
+	log.Infof("dropWorker %s and delete from pPet and cSet, activeWindows %v", w.info.Hostname, w.activeWindows)
 	// ==========================================      mod     ===================================
 
 	delete(sh.workers, wid)

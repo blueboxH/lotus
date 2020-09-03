@@ -14,18 +14,22 @@ import (
 
 var RedisClient *redis.Pool
 var sectorNumPerWorker int
-var redisPrefix string // todo
+var redisPrefix string
 var workerSectorStatesRedisPrefix = "workerSectorStates:"
 var workerDoingSectorRedisPrefix = "workerDoingSector:"
 var SchedulerHt schedulerHt = schedulerHt{}
+var DoingSectors map[abi.SectorNumber]sealtasks.TaskType = make(map[abi.SectorNumber]sealtasks.TaskType)
 
 type workerSectorStates map[abi.SectorNumber]string
 
 func initRedis() {
-
+	log.Debug("start init redis...")
 	host, db := getRedisPath()
 	auth := ""
 
+	if RedisClient != nil {
+		return
+	}
 	RedisClient = &redis.Pool{
 		MaxIdle:     100,
 		MaxActive:   4000,
@@ -33,6 +37,7 @@ func initRedis() {
 		Dial: func() (redis.Conn, error) {
 			c, err := redis.Dial("tcp", host, redis.DialPassword(auth), redis.DialDatabase(db))
 			if nil != err {
+				log.Error("create redis pool error: %v", err)
 				return nil, err
 			}
 			return c, nil
@@ -81,6 +86,10 @@ func getRedisPath() (string, int) {
 
 // 在pool加入TestOnBorrow方法来去除扫描坏连接
 func redo(command string, opt ...interface{}) (interface{}, error) {
+	if RedisClient == nil {
+		initRedis()
+	}
+
 	rd := RedisClient.Get()
 	defer rd.Close()
 
@@ -206,23 +215,23 @@ func (sh schedulerHt) delWorkerSectorState(hostname string, number abi.SectorNum
 	}
 }
 
-func (sh schedulerHt) getWorkerDoingSector(hostname string, number abi.SectorNumber) []byte {
-	res, err := redis.Bytes(redo("hget", redisPrefix+workerDoingSectorRedisPrefix+hostname, number))
+func (sh schedulerHt) getWorkerDoingSector(taskType sealtasks.TaskType, number abi.SectorNumber) []byte {
+	res, err := redis.Bytes(redo("hget", redisPrefix+workerDoingSectorRedisPrefix+taskType.Short(), number))
 	if err != nil {
 		return []byte{}
 	}
 	return res
 }
 
-func (sh schedulerHt) setWorkerDoingSector(hostname string, number abi.SectorNumber, res []byte) {
-	_, err := redo("hset", redisPrefix+workerDoingSectorRedisPrefix+hostname, number, res)
+func (sh schedulerHt) setWorkerDoingSector(taskType sealtasks.TaskType, number abi.SectorNumber, res []byte) {
+	_, err := redo("hset", redisPrefix+workerDoingSectorRedisPrefix+taskType.Short(), number, res)
 	if err != nil {
 		log.Debug(err)
 	}
 }
 
-func (sh schedulerHt) delWorkerDoingSector(hostname string, number abi.SectorNumber) {
-	_, err := redo("hdel", redisPrefix+workerDoingSectorRedisPrefix+hostname, number)
+func (sh schedulerHt) delWorkerDoingSector(taskType sealtasks.TaskType, number abi.SectorNumber) {
+	_, err := redo("hdel", redisPrefix+workerDoingSectorRedisPrefix+taskType.Short(), number)
 	if err != nil {
 		log.Debug(err)
 	}
@@ -367,7 +376,7 @@ func (sh schedulerHt) afterTaskFinish(sector abi.SectorID, taskType sealtasks.Ta
 	log.Infof("sector %s %s task done at host %s", sector, taskType.Short(), hostname)
 
 	// sector cache
-	if sealtasks.TTPreCommit1 == taskType || sealtasks.TTAddPieceHT == taskType { // p1 或者 apht 阶段加入 map
+	if sealtasks.TTAddPieceHT == taskType { // apht 阶段完成加入 map
 		log.Infof("cache log: sector %s %s => host %s", sector, taskType.Short(), hostname)
 		sh.setSectorCache(sector.Number, hostname)
 	}
@@ -440,15 +449,29 @@ func (sh schedulerHt) afterScheduled(sector abi.SectorID, taskType sealtasks.Tas
 	if sealtasks.TTPreCommit1 == taskType || sealtasks.TTAddPieceHT == taskType { // p1 或者 apht 说明已经进入了调用
 		delete(UnScheduling, sector.Number)
 	}
+
+	if sealtasks.TTPreCommit1 == taskType && sh.getSectorCache(sector.Number) == "" { // 这里针对官方交易, p1开始调度, 却没有cache, 加入map
+		log.Infof("cache log: sector %s %s => host %s", sector, taskType.Short(), hostname)
+		sh.setSectorCache(sector.Number, hostname)
+	}
 }
 
-// worker 在开始做p1 p2 等耗时任务时候, 将任务类型值写入redis, 表示开始, 将运行结果值写入redis, 表示结束
-func isFinished(hostname string, sector abi.SectorID, taskType sealtasks.TaskType) (bool, func()) {
+// worker 在开始做p1 p2 等耗时任务时候, 将任务类型值写入redis, 表示开始, 结束时删除此值, 另外, 将运行结果值写入redis
+func isFinished(sector abi.SectorID, taskType sealtasks.TaskType) (cacheRes []byte, finish func(res []byte)) {
 
-	// 获取任务
-	//doingSector := SchedulerHt.getWorkerDoingSector(hostname, sector.Number)
+	cacheRes = SchedulerHt.getWorkerDoingSector(taskType, sector.Number)
 
-	return false, func() {
+	if len(cacheRes) > 0 {
+		log.Infof("sector %s %s is done , will skip it", sector, taskType)
+	}
 
+	DoingSectors[sector.Number] = taskType
+
+	return cacheRes, func(res []byte) {
+		if len(res) > 0 {
+			SchedulerHt.setWorkerDoingSector(taskType, sector.Number, res)
+			log.Infof("sector %s %s finish, result cache to redis", sector, taskType)
+		}
+		delete(DoingSectors, sector.Number)
 	}
 }
