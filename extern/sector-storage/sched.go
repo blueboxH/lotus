@@ -894,7 +894,7 @@ func (sh *scheduler) assignWorker(taskDone chan struct{}, wid WorkerID, w *worke
 
 			go func() { // todo delete
 				time.Sleep(time.Duration(1) * time.Minute)
-				sh.workerClosing <- wid
+				sh.watchClosing <- wid
 			}()
 			err = req.work(req.ctx, w.wt.worker(w.w))
 			// ==========================================      mod     ===================================
