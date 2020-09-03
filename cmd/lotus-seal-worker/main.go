@@ -162,6 +162,8 @@ var runCmd = &cli.Command{
 			}
 		}
 
+		sectorstorage.InitRedis() // 初始化redis
+
 		// Connect to storage-miner
 		var nodeApi api.StorageMiner
 		var closer func()
@@ -215,10 +217,8 @@ var runCmd = &cli.Command{
 
 		taskTypes = append(taskTypes, sealtasks.TTFetch, sealtasks.TTCommit1, sealtasks.TTFinalize)
 
-		if cctx.Bool("addpiece") {
-			taskTypes = append(taskTypes, sealtasks.TTAddPiece)
-		}
 		if cctx.Bool("precommit1") {
+			taskTypes = append(taskTypes, sealtasks.TTAddPieceHT)
 			taskTypes = append(taskTypes, sealtasks.TTPreCommit1)
 		}
 		if cctx.Bool("unseal") {
@@ -444,7 +444,16 @@ func watchMinerConn(ctx context.Context, cctx *cli.Context, nodeApi api.StorageM
 			return // graceful shutdown
 		}
 
-		log.Warnf("Connection with miner node lost, restarting")
+		// ============================= mod ===========================
+		for len(sectorstorage.DoingSectors) > 0 {
+			log.Warnf("Connection with miner node lost, after task finish will restarting, taskMap: %v", sectorstorage.DoingSectors)
+			iw := time.After(1 * time.Minute) // todo: 测试 1分钟一次, 上线改为5分钟
+			select {
+			case <-iw:
+				iw = nil
+			}
+		}
+		// ============================= mod ===========================
 
 		exe, err := os.Executable()
 		if err != nil {

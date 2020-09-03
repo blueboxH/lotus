@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +18,17 @@ import (
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/fsutil"
 )
+
+var CephStoragePath = getCephStoragePath()
+
+func getCephStoragePath() string {
+	cephStoragePath := os.Getenv("CEPH_STORAGE_PATH")
+	if cephStoragePath == "" {
+		log.Debugf("env CEPH_STORAGE_PATH not found, use default '/cephfs/lotusminer_public/' ")
+		return "/cephfs/lotusminer_public/"
+	}
+	return cephStoragePath
+}
 
 type StoragePath struct {
 	ID     ID
@@ -264,6 +276,34 @@ func (st *Local) reportHealth(ctx context.Context) {
 	}
 }
 
+// ============================= mod ===========================
+func (st *Local) SendSectorToMiner(ctx context.Context, sector abi.SectorID, spt abi.RegisteredSealProof, ft SectorFileType) error {
+	log.Infof("======================== ZFB Warning ========================= start send sector %v to miner storage", sector)
+	paths, _, err := st.AcquireSector(ctx, sector, spt, ft, FTNone, PathSealing, AcquireCopy)
+	if err != nil {
+		log.Infof("======================== ZFB Warning ========================= send sector %v to miner storage error,%s", sector, err)
+		return err
+	}
+	for _, fileType := range PathTypes {
+		if fileType&ft == 0 {
+			continue
+		}
+		if strings.Contains(PathByType(paths, fileType), "lotusminer") {
+
+			continue
+		}
+		if err := move(PathByType(paths, fileType), filepath.Join(CephStoragePath, fileType.String(), filepath.Base(PathByType(paths, fileType)))); err != nil {
+			log.Infof("======================== ZFB Warning ========================= send sector %v to miner storage error,fileType: %s,%s", sector, fileType, err)
+			return err
+		}
+
+		log.Infof("======================== ZFB Warning ========================= send sector %v to miner storage success,fileType: %s", sector, fileType)
+	}
+	return nil
+
+}
+
+// ============================= mod ===========================
 func (st *Local) Reserve(ctx context.Context, sid abi.SectorID, spt abi.RegisteredSealProof, ft SectorFileType, storageIDs SectorPaths, overheadTab map[SectorFileType]int) (func(), error) {
 	ssize, err := spt.SectorSize()
 	if err != nil {
