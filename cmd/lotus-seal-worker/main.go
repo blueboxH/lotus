@@ -159,6 +159,8 @@ var runCmd = &cli.Command{
 			}
 		}
 
+		sectorstorage.InitRedis() // 初始化redis
+
 		// Connect to storage-miner
 		var nodeApi api.StorageMiner
 		var closer func()

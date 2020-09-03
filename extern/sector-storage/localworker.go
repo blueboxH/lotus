@@ -149,7 +149,7 @@ func (l *LocalWorker) SealPreCommit1(ctx context.Context, sector abi.SectorID, t
 
 	// ============================= mod ===========================
 	out, err = sb.SealPreCommit1(ctx, sector, ticket, pieces)
-	time.Sleep(time.Duration(3) * time.Minute)
+	time.Sleep(time.Duration(3) * time.Minute) // todo delete
 	defer finish(out)
 
 	return out, err
@@ -185,7 +185,7 @@ func (l *LocalWorker) SealPreCommit2(ctx context.Context, sector abi.SectorID, p
 
 	// ============================= mod ===========================
 	cids, err = sb.SealPreCommit2(ctx, sector, phase1Out)
-	time.Sleep(time.Duration(3) * time.Minute)
+	time.Sleep(time.Duration(3) * time.Minute) // todo delete
 	var cache string
 	if err == nil {
 		cache = cids.Unsealed.String() + sep + cids.Sealed.String()
@@ -220,7 +220,7 @@ func (l *LocalWorker) SealCommit2(ctx context.Context, sector abi.SectorID, phas
 
 	// ============================= mod ===========================
 	proof, err = sb.SealCommit2(ctx, sector, phase1Out)
-	time.Sleep(time.Duration(3) * time.Minute)
+	time.Sleep(time.Duration(3) * time.Minute) // todo delete
 	defer finish(proof)
 	return proof, err
 	// ============================= mod ===========================
