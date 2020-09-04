@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/go-kit/kit/transport/http/jsonrpc"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -464,7 +465,7 @@ func watchMinerConn(ctx context.Context, cctx *cli.Context, nodeApi api.StorageM
 			}
 		}
 		sectorstorage.SchedulerHt.DelRSet(hostname)
-		log.Debugf("delete RSet %s", hostname)
+		log.Infof("delete RSet %s", hostname)
 		// ============================= mod ===========================
 
 		exe, err := os.Executable()

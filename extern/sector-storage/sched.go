@@ -742,9 +742,9 @@ func (sh *scheduler) runWorker(wid WorkerID) {
 			sh.workersLk.RLock()
 			worker.wndLk.Lock()
 
-			log.Infof(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> befor workerCompactWindows activeWindow %v", &worker.activeWindows)
+			log.Infof(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> befor workerCompactWindows activeWindow %v", worker.activeWindows)
 			windowsRequested -= sh.workerCompactWindows(worker, wid)
-			log.Infof(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> after workerCompactWindows activeWindow %v", &worker.activeWindows)
+			log.Infof(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> after workerCompactWindows activeWindow %v", worker.activeWindows)
 		assignLoop:
 			// process windows in order
 			for len(worker.activeWindows) > 0 {

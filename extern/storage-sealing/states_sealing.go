@@ -126,6 +126,7 @@ func (m *Sealing) handlePreCommit1(ctx statemachine.Context, sector SectorInfo) 
 	} else {
 		sectorstorage.SchedulerHt.SetTicketValue(ticketValue, ticketEpoch)
 	}
+	log.Infof("sector %s ticket %v, epoch %d", m.minerSector(sector.SectorNumber), ticketValue, ticketEpoch)
 	// ============================= mod ===========================
 	pc1o, err := m.sealer.SealPreCommit1(sector.sealingCtx(ctx.Context()), m.minerSector(sector.SectorNumber), ticketValue, sector.pieceInfos())
 	if err != nil {
