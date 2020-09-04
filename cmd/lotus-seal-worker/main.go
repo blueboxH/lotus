@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/go-kit/kit/transport/http/jsonrpc"
 	"io/ioutil"
 	"net"
 	"net/http"
