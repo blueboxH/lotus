@@ -1,6 +1,7 @@
 package sectorstorage
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"os"
@@ -126,9 +127,15 @@ func (l *LocalWorker) Fetch(ctx context.Context, sector abi.SectorID, fileType s
 
 func (l *LocalWorker) SealPreCommit1(ctx context.Context, sector abi.SectorID, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out storage2.PreCommit1Out, err error) {
 	// ============================= mod ===========================
+	sep := []byte(";")
 	cacheRes, finish := isFinished(sector, sealtasks.TTPreCommit1)
 	if len(cacheRes) > 0 {
-		return cacheRes, nil
+		split := bytes.Split(cacheRes, sep)
+		if len(split) == 2 {
+			return split[0], nil
+		} else {
+			log.Infof("sector %s %s get cacheRes from redis decode error, redo it: %s", sector, sealtasks.TTPreCommit1.Short(), cacheRes)
+		}
 	}
 	// ============================= mod ===========================
 	{
@@ -149,8 +156,8 @@ func (l *LocalWorker) SealPreCommit1(ctx context.Context, sector abi.SectorID, t
 
 	// ============================= mod ===========================
 	out, err = sb.SealPreCommit1(ctx, sector, ticket, pieces)
-	time.Sleep(time.Duration(3) * time.Minute) // todo delete
-	defer finish(out)
+	time.Sleep(time.Duration(1) * time.Minute) // todo delete
+	defer finish(bytes.Join([][]byte{out, ticket}, sep))
 
 	return out, err
 	// ============================= mod ===========================
@@ -185,7 +192,7 @@ func (l *LocalWorker) SealPreCommit2(ctx context.Context, sector abi.SectorID, p
 
 	// ============================= mod ===========================
 	cids, err = sb.SealPreCommit2(ctx, sector, phase1Out)
-	time.Sleep(time.Duration(3) * time.Minute) // todo delete
+	time.Sleep(time.Duration(1) * time.Minute) // todo delete
 	var cache string
 	if err == nil {
 		cache = cids.Unsealed.String() + sep + cids.Sealed.String()
@@ -220,7 +227,7 @@ func (l *LocalWorker) SealCommit2(ctx context.Context, sector abi.SectorID, phas
 
 	// ============================= mod ===========================
 	proof, err = sb.SealCommit2(ctx, sector, phase1Out)
-	time.Sleep(time.Duration(3) * time.Minute) // todo delete
+	time.Sleep(time.Duration(1) * time.Minute) // todo delete
 	defer finish(proof)
 	return proof, err
 	// ============================= mod ===========================

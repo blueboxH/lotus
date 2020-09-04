@@ -23,9 +23,11 @@ var DefaultSchedPriority = 0
 var SelectorTimeout = 5 * time.Second
 var InitWait = 3 * time.Second
 
+// ============================= mod ===========================
 var htSchedTasks = []sealtasks.TaskType{sealtasks.TTFinalize, sealtasks.TTCommit1, sealtasks.TTPreCommit2, sealtasks.TTPreCommit1} // 列表顺序不能打乱
 var UnScheduling = make(map[abi.SectorNumber]struct{})                                                                             // 已添加却未调度给P worker 的列表
 var APHTSets = make(map[abi.SectorNumber]struct{})                                                                                 // 已添加却未调度APHT的上去编号
+// ============================= mod ===========================
 
 var (
 	SchedWindows = 2
@@ -900,7 +902,7 @@ func (sh *scheduler) assignWorker(taskDone chan struct{}, wid WorkerID, w *worke
 			// ==========================================      mod     ===================================
 			if err == nil {
 				SchedulerHt.afterTaskFinish(req.sector, req.taskType, w.info.Hostname)
-				SchedulerHt.delWorkerDoingSector(req.taskType, req.sector.Number)
+				SchedulerHt.DelWorkerDoingSector(req.taskType, req.sector.Number)
 			}
 			// ==========================================      mod     ===================================
 
