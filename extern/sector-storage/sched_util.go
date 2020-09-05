@@ -220,7 +220,7 @@ func (sh schedulerHt) delWorkerSectorState(hostname string, number abi.SectorNum
 	}
 }
 
-func (sh schedulerHt) getWorkerDoingSector(taskType sealtasks.TaskType, number abi.SectorNumber) []byte {
+func (sh schedulerHt) GetWorkerDoingSector(taskType sealtasks.TaskType, number abi.SectorNumber) []byte {
 	res, err := redis.Bytes(redo("hget", getRedisPrefix()+workerDoingSectorRedisPrefix+taskType.Short(), number))
 	if err != nil {
 		return []byte{}
@@ -235,7 +235,7 @@ func (sh schedulerHt) setWorkerDoingSector(taskType sealtasks.TaskType, number a
 	}
 }
 
-func (sh schedulerHt) delWorkerDoingSector(taskType sealtasks.TaskType, number abi.SectorNumber) {
+func (sh schedulerHt) DelWorkerDoingSector(taskType sealtasks.TaskType, number abi.SectorNumber) {
 	_, err := redo("hdel", getRedisPrefix()+workerDoingSectorRedisPrefix+taskType.Short(), number)
 	if err != nil {
 		log.Debug(err)
@@ -283,6 +283,20 @@ func (sh schedulerHt) addToCSet(hostname string) {
 
 func (sh schedulerHt) delCSet(hostname string) {
 	_, err := redo("SREM", getRedisPrefix()+"cWorker", hostname)
+	if err != nil {
+		log.Debug(err)
+	}
+}
+
+func (sh schedulerHt) AddToRSet(hostname string) {
+	_, err := redo("SADD", getRedisPrefix()+"rWorker", hostname)
+	if err != nil {
+		log.Debug(err)
+	}
+}
+
+func (sh schedulerHt) DelRSet(hostname string) {
+	_, err := redo("SREM", getRedisPrefix()+"rWorker", hostname)
 	if err != nil {
 		log.Debug(err)
 	}
@@ -346,6 +360,29 @@ func (sh schedulerHt) deleteSectorLastHost(sectorNumber abi.SectorNumber) {
 	if err != nil {
 		log.Info(err)
 	}
+}
+
+func (sh schedulerHt) SetTicketValue(value abi.SealRandomness, epoch abi.ChainEpoch) {
+	_, err := redo("hset", getRedisPrefix()+"ticketValue", value, epoch)
+	if err != nil {
+		log.Info(err)
+	}
+}
+
+func (sh schedulerHt) DelTicketValue(value abi.SealRandomness) {
+	_, err := redo("hdel", getRedisPrefix()+"ticketValue", value)
+	if err != nil {
+		log.Info(err)
+	}
+}
+
+func (sh schedulerHt) GetTicketValue(value abi.SealRandomness) abi.ChainEpoch {
+	epoch, err := redis.Int64(redo("hget", getRedisPrefix()+"ticketValue", value))
+	if err != nil {
+		log.Info(err)
+		return 0
+	}
+	return abi.ChainEpoch(epoch)
 }
 
 func (sh schedulerHt) filterMaxNum(hostname string, sector abi.SectorID, taskType sealtasks.TaskType) bool {
@@ -465,7 +502,7 @@ func (sh schedulerHt) afterScheduled(sector abi.SectorID, taskType sealtasks.Tas
 func isFinished(sector abi.SectorID, taskType sealtasks.TaskType) (cacheRes []byte, finish func(res []byte)) {
 	hostname, _ := os.Hostname()
 	SchedulerHt.setWorkerSectorState(hostname, sector.Number, taskType, "running")
-	cacheRes = SchedulerHt.getWorkerDoingSector(taskType, sector.Number)
+	cacheRes = SchedulerHt.GetWorkerDoingSector(taskType, sector.Number)
 
 	if len(cacheRes) > 0 {
 		log.Infof("sector %s %s is done , will skip it", sector, taskType)

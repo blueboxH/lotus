@@ -21,6 +21,11 @@ import (
 
 var CephStoragePath = getCephStoragePath()
 
+// ============================= mod ===========================
+var ReportHealth bool = true
+
+// ============================= mod ===========================
+
 func getCephStoragePath() string {
 	cephStoragePath := os.Getenv("CEPH_STORAGE_PATH")
 	if cephStoragePath == "" {
@@ -247,7 +252,7 @@ func (st *Local) reportHealth(ctx context.Context) {
 	// randomize interval by ~10%
 	interval := (HeartbeatInterval*100_000 + time.Duration(rand.Int63n(10_000))) / 100_000
 
-	for {
+	for ReportHealth {
 		select {
 		case <-time.After(interval):
 		case <-ctx.Done():
