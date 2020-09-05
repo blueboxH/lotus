@@ -1,5 +1,46 @@
 # Lotus changelog
 
+# 0.5.4
+
+A patch release, containing a few nice bugfixes and improvements:
+
+- Fix parsing of peer ID in `lotus-miner actor set-peer-id` (@whyrusleeping)
+- Update dependencies, fixing several bugs (@Stebalien)
+- Fix remaining linter warnings (@Stebalien)
+- Use safe string truncation (@Ingar)
+- Allow tweaking of blocksync message window size (@whyrusleeping)
+- Add some additional gas stats to metrics (@Kubuxu)
+- Fix an edge case bug in message selection, add many tests (@vyzo)
+
+# 0.5.3
+
+Yet another hotfix release. 
+A lesson for readers, having people who have been awake for 12+ hours review
+your hotfix PR is not a good idea. Find someone who has enough slept recently
+enough to give you good code review, otherwise you'll end up quickly bumping
+versions again.
+
+- Fixed a bug in the mempool that was introduced in v0.5.2
+
+# 0.5.2 / 2020-08-24
+
+This is a hotfix release.
+
+- Fix message selection to not include messages that are invalid for block
+  inclusion.
+- Improve SelectMessage handling of the case where the message pools tipset
+  differs from our mining base.
+
+# 0.5.1 / 2020-08-24
+
+The Space Race release! 
+This release contains the genesis car file and bootstrap peers for the space
+race network. 
+
+Additionally, we included two small fixes to genesis creation:
+- Randomize ticket value in genesis generation
+- Correctly set t099 (burnt funds actor) to have valid account actor state
+
 # 0.5.0 / 2020-08-20
 
 This version of Lotus will be used for the incentivized testnet Space Race competition,

@@ -150,7 +150,7 @@ func newScheduler(spt abi.RegisteredSealProof) *scheduler {
 		watchClosing:  make(chan WorkerID),
 		workerClosing: make(chan WorkerID),
 
-		schedule:       make(chan *workerRequest, 1000),
+		schedule:       make(chan *workerRequest),
 		windowRequests: make(chan *schedWindowRequest),
 
 		schedQueue: &requestQueue{},
@@ -242,52 +242,34 @@ func (sh *scheduler) runSched() {
 
 		case req := <-sh.schedule:
 			// ==========================================      mod     ===================================
-			var workerRequests []*workerRequest
-			workerRequests = append(workerRequests, req)
-			for i := 0; i < len(sh.schedule); i++ {
-				workerRequests = append(workerRequests, req)
-			}
-			log.Debugf("get %d workerRequest", len(workerRequests))
-
-			doTrySched := false
-			doTryHtSched := false
-			for _, request := range workerRequests {
-				// p1 p2 c1 且已经缓存过, 存入自己维护的map, c2 也自己维护
-				cacheHostname := SchedulerHt.getSectorCache(request.sector.Number)
-				htSched := false
-				for _, task := range htSchedTasks {
-					if task == request.taskType {
-						htSched = true
-						break
-					}
-				}
-
-				if htSched && cacheHostname != "" {
-					shedMap := sh.htSchedMap[cacheHostname]
-					if shedMap == nil {
-						shedMap = make(map[sealtasks.TaskType]map[abi.SectorID]*workerRequest)
-						sh.htSchedMap[cacheHostname] = shedMap
-					}
-					taskMap := shedMap[request.taskType]
-					if taskMap == nil {
-						taskMap = make(map[abi.SectorID]*workerRequest)
-						sh.htSchedMap[cacheHostname][request.taskType] = taskMap
-					}
-					taskMap[request.sector] = request
-					log.Debugf("add sector %s %s to htSchedMap", request.sector, request.taskType.Short())
-
-					doTryHtSched = true
-				} else {
-					sh.schedQueue.Push(request)
-					doTrySched = true
+			// p1 p2 c1 且已经缓存过, 存入自己维护的map, c2 也自己维护
+			cacheHostname := SchedulerHt.getSectorCache(req.sector.Number)
+			htSched := false
+			for _, task := range htSchedTasks {
+				if task == req.taskType {
+					htSched = true
+					break
 				}
 			}
 
-			if doTrySched {
-				sh.trySched()
-			}
-			if doTryHtSched {
+			if htSched && cacheHostname != "" {
+				shedMap := sh.htSchedMap[cacheHostname]
+				if shedMap == nil {
+					shedMap = make(map[sealtasks.TaskType]map[abi.SectorID]*workerRequest)
+					sh.htSchedMap[cacheHostname] = shedMap
+				}
+				taskMap := shedMap[req.taskType]
+				if taskMap == nil {
+					taskMap = make(map[abi.SectorID]*workerRequest)
+					sh.htSchedMap[cacheHostname][req.taskType] = taskMap
+				}
+				taskMap[req.sector] = req
+				log.Debugf("add sector %s %s to htSchedMap", req.sector, req.taskType.Short())
+
 				sh.tryHtSched()
+			} else {
+				sh.schedQueue.Push(req)
+				sh.trySched()
 			}
 
 			// ==========================================      mod     ===================================
@@ -391,78 +373,99 @@ func (sh *scheduler) trySched() {
 
 	sh.workersLk.RLock()
 	defer sh.workersLk.RUnlock()
+	if len(sh.openWindows) == 0 {
+		// nothing to schedule on
+		return
+	}
 
 	// Step 1
-	for sqi := 0; sqi < sh.schedQueue.Len(); sqi++ {
-		task := (*sh.schedQueue)[sqi]
-		needRes := ResourceTable[task.taskType][sh.spt]
+	concurrency := len(sh.openWindows)
+	throttle := make(chan struct{}, concurrency)
 
-		task.indexHeap = sqi
-		for wnd, windowRequest := range sh.openWindows {
-			worker, ok := sh.workers[windowRequest.worker]
-			if !ok {
-				log.Errorf("worker referenced by windowRequest not found (worker: %d)", windowRequest.worker)
-				// TODO: How to move forward here?
-				continue
+	var wg sync.WaitGroup
+	wg.Add(sh.schedQueue.Len())
+
+	for i := 0; i < sh.schedQueue.Len(); i++ {
+		throttle <- struct{}{}
+
+		go func(sqi int) {
+			defer wg.Done()
+			defer func() {
+				<-throttle
+			}()
+
+			task := (*sh.schedQueue)[sqi]
+			needRes := ResourceTable[task.taskType][sh.spt]
+
+			task.indexHeap = sqi
+			for wnd, windowRequest := range sh.openWindows {
+				worker, ok := sh.workers[windowRequest.worker]
+				if !ok {
+					log.Errorf("worker referenced by windowRequest not found (worker: %d)", windowRequest.worker)
+					// TODO: How to move forward here?
+					continue
+				}
+
+				// ==========================================      mod     ===================================
+				// 进行数量的控制
+				if !SchedulerHt.filterMaxNum(worker.info.Hostname, task.sector, task.taskType) {
+					continue
+				}
+				// ==========================================      mod     ===================================
+
+				// TODO: allow bigger windows
+				if !windows[wnd].allocated.canHandleRequest(needRes, windowRequest.worker, worker.info.Resources) {
+					continue
+				}
+
+				rpcCtx, cancel := context.WithTimeout(task.ctx, SelectorTimeout)
+				ok, err := task.sel.Ok(rpcCtx, task.taskType, sh.spt, worker)
+				cancel()
+				if err != nil {
+					log.Errorf("trySched(1) req.sel.Ok error: %+v", err)
+					continue
+				}
+
+				if !ok {
+					continue
+				}
+
+				acceptableWindows[sqi] = append(acceptableWindows[sqi], wnd)
 			}
 
-			// ==========================================      mod     ===================================
-			// 进行数量的控制
-			if !SchedulerHt.filterMaxNum(worker.info.Hostname, task.sector, task.taskType) {
-				continue
-			}
-			// ==========================================      mod     ===================================
-
-			// TODO: allow bigger windows
-			if !windows[wnd].allocated.canHandleRequest(needRes, windowRequest.worker, worker.info.Resources) {
-				continue
+			if len(acceptableWindows[sqi]) == 0 {
+				return
 			}
 
-			rpcCtx, cancel := context.WithTimeout(task.ctx, SelectorTimeout)
-			ok, err := task.sel.Ok(rpcCtx, task.taskType, sh.spt, worker)
-			cancel()
-			if err != nil {
-				log.Errorf("trySched(1) req.sel.Ok error: %+v", err)
-				continue
-			}
+			// Pick best worker (shuffle in case some workers are equally as good)
+			rand.Shuffle(len(acceptableWindows[sqi]), func(i, j int) {
+				acceptableWindows[sqi][i], acceptableWindows[sqi][j] = acceptableWindows[sqi][j], acceptableWindows[sqi][i] // nolint:scopelint
+			})
+			sort.SliceStable(acceptableWindows[sqi], func(i, j int) bool {
+				wii := sh.openWindows[acceptableWindows[sqi][i]].worker // nolint:scopelint
+				wji := sh.openWindows[acceptableWindows[sqi][j]].worker // nolint:scopelint
 
-			if !ok {
-				continue
-			}
+				if wii == wji {
+					// for the same worker prefer older windows
+					return acceptableWindows[sqi][i] < acceptableWindows[sqi][j] // nolint:scopelint
+				}
 
-			acceptableWindows[sqi] = append(acceptableWindows[sqi], wnd)
-		}
+				wi := sh.workers[wii]
+				wj := sh.workers[wji]
 
-		if len(acceptableWindows[sqi]) == 0 {
-			continue
-		}
+				rpcCtx, cancel := context.WithTimeout(task.ctx, SelectorTimeout)
+				defer cancel()
 
-		// Pick best worker (shuffle in case some workers are equally as good)
-		rand.Shuffle(len(acceptableWindows[sqi]), func(i, j int) {
-			acceptableWindows[sqi][i], acceptableWindows[sqi][j] = acceptableWindows[sqi][j], acceptableWindows[sqi][i] // nolint:scopelint
-		})
-		sort.SliceStable(acceptableWindows[sqi], func(i, j int) bool {
-			wii := sh.openWindows[acceptableWindows[sqi][i]].worker // nolint:scopelint
-			wji := sh.openWindows[acceptableWindows[sqi][j]].worker // nolint:scopelint
-
-			if wii == wji {
-				// for the same worker prefer older windows
-				return acceptableWindows[sqi][i] < acceptableWindows[sqi][j] // nolint:scopelint
-			}
-
-			wi := sh.workers[wii]
-			wj := sh.workers[wji]
-
-			rpcCtx, cancel := context.WithTimeout(task.ctx, SelectorTimeout)
-			defer cancel()
-
-			r, err := task.sel.Cmp(rpcCtx, task.taskType, wi, wj)
-			if err != nil {
-				log.Error("selecting best worker: %s", err)
-			}
-			return r
-		})
+				r, err := task.sel.Cmp(rpcCtx, task.taskType, wi, wj)
+				if err != nil {
+					log.Error("selecting best worker: %s", err)
+				}
+				return r
+			})
+		}(i)
 	}
+
+	wg.Wait()
 
 	log.Debugf("SCHED windows: %+v", windows)
 	log.Debugf("SCHED Acceptable win: %+v", acceptableWindows)
@@ -827,6 +830,7 @@ func (sh *scheduler) dropWorker(wid WorkerID) {
 	// ==========================================      mod     ===================================
 	SchedulerHt.delPSet(w.info.Hostname)
 	SchedulerHt.delCSet(w.info.Hostname)
+	log.Infof("dropWorker %s and delete from pPet and cSet", w.info.Hostname)
 	// ==========================================      mod     ===================================
 
 	delete(sh.workers, wid)
