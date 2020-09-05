@@ -98,6 +98,10 @@ var runCmd = &cli.Command{
 			Usage: "host address and port the worker api will listen on",
 			Value: "0.0.0.0:3456",
 		},
+		&cli.BoolFlag{
+			Name:  "custom-rpc-log",
+			Value:true,
+		},
 		&cli.StringFlag{
 			Name:   "address",
 			Hidden: true,
@@ -158,7 +162,9 @@ var runCmd = &cli.Command{
 				return xerrors.Errorf("could not set no-gpu env: %+v", err)
 			}
 		}
-
+		if cctx.Bool("custom-rpc-log") {
+			jsonrpc.CommandLogFlag = true
+		}
 		// Connect to storage-miner
 		var nodeApi api.StorageMiner
 		var closer func()

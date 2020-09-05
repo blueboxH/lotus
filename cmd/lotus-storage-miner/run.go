@@ -37,6 +37,10 @@ var runCmd = &cli.Command{
 			Usage: "2345",
 		},
 		&cli.BoolFlag{
+			Name:  "custom-rpc-log",
+			Value:true,
+		},
+		&cli.BoolFlag{
 			Name:  "enable-gpu-proving",
 			Usage: "enable use of GPU for mining operations",
 			Value: true,
@@ -58,7 +62,9 @@ var runCmd = &cli.Command{
 				return err
 			}
 		}
-
+		if cctx.Bool("custom-rpc-log") {
+			jsonrpc.CommandLogFlag = true
+		}
 		nodeApi, ncloser, err := lcli.GetFullNodeAPI(cctx)
 		if err != nil {
 			return err
