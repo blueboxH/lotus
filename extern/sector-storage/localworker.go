@@ -129,6 +129,10 @@ func (l *LocalWorker) SealPreCommit1(ctx context.Context, sector abi.SectorID, t
 	// ============================= mod ===========================
 	sep := []byte(";")
 	cacheRes, finish := isFinished(sector, sealtasks.TTPreCommit1)
+	SchedulerHt.SetTicketValue(sector.Number, ticket)
+	defer func() {
+		SchedulerHt.DelTicketValue(sector.Number)
+	}()
 	if len(cacheRes) > 0 {
 		split := bytes.Split(cacheRes, sep)
 		if len(split) == 2 {

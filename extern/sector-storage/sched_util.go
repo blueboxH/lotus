@@ -362,27 +362,49 @@ func (sh schedulerHt) deleteSectorLastHost(sectorNumber abi.SectorNumber) {
 	}
 }
 
-func (sh schedulerHt) SetTicketValue(value abi.SealRandomness, epoch abi.ChainEpoch) {
-	_, err := redo("hset", getRedisPrefix()+"ticketValue", value, epoch)
+//func (sh schedulerHt) SetTicketValue(value abi.SealRandomness, epoch abi.ChainEpoch) {
+//	_, err := redo("hset", getRedisPrefix()+"ticketValue", value, epoch)
+//	if err != nil {
+//		log.Info(err)
+//	}
+//}
+//
+//func (sh schedulerHt) DelTicketValue(value abi.SealRandomness) {
+//	_, err := redo("hdel", getRedisPrefix()+"ticketValue", value)
+//	if err != nil {
+//		log.Info(err)
+//	}
+//}
+//
+//func (sh schedulerHt) GetTicketValue(value abi.SealRandomness) abi.ChainEpoch {
+//	epoch, err := redis.Int64(redo("hget", getRedisPrefix()+"ticketValue", value))
+//	if err != nil {
+//		log.Info(err)
+//		return 0
+//	}
+//	return abi.ChainEpoch(epoch)
+//}
+//
+func (sh schedulerHt) SetTicketValue(sectorNumber abi.SectorNumber, value []byte) {
+	_, err := redo("hset", getRedisPrefix()+"ticketValue", sectorNumber, value)
 	if err != nil {
 		log.Info(err)
 	}
 }
 
-func (sh schedulerHt) DelTicketValue(value abi.SealRandomness) {
-	_, err := redo("hdel", getRedisPrefix()+"ticketValue", value)
+func (sh schedulerHt) DelTicketValue(sectorNumber abi.SectorNumber) {
+	_, err := redo("hdel", getRedisPrefix()+"ticketValue", sectorNumber)
 	if err != nil {
 		log.Info(err)
 	}
 }
 
-func (sh schedulerHt) GetTicketValue(value abi.SealRandomness) abi.ChainEpoch {
-	epoch, err := redis.Int64(redo("hget", getRedisPrefix()+"ticketValue", value))
+func (sh schedulerHt) GetTicketValue(sectorNumber abi.SectorNumber) []byte {
+	value, err := redis.Bytes(redo("hget", getRedisPrefix()+"ticketValue", sectorNumber))
 	if err != nil {
-		log.Info(err)
-		return 0
+		return []byte{}
 	}
-	return abi.ChainEpoch(epoch)
+	return value
 }
 
 func (sh schedulerHt) filterMaxNum(hostname string, sector abi.SectorID, taskType sealtasks.TaskType) bool {
