@@ -25,6 +25,9 @@ func initRedis() {
 	host, db := getRedisPath()
 	auth := ""
 
+	if RedisClient != nil {
+		return
+	}
 	RedisClient = &redis.Pool{
 		MaxIdle:     100,
 		MaxActive:   4000,
@@ -32,6 +35,7 @@ func initRedis() {
 		Dial: func() (redis.Conn, error) {
 			c, err := redis.Dial("tcp", host, redis.DialPassword(auth), redis.DialDatabase(db))
 			if nil != err {
+				log.Error("create redis pool error: %v", err)
 				return nil, err
 			}
 			return c, nil
@@ -344,7 +348,7 @@ func (sh schedulerHt) afterTaskFinish(sector abi.SectorID, taskType sealtasks.Ta
 	log.Infof("sector %s %s task done at host %s", sector, taskType.Short(), hostname)
 
 	// sector cache
-	if sealtasks.TTPreCommit1 == taskType || sealtasks.TTAddPieceHT == taskType { // p1 或者 apht 阶段加入 map
+	if sealtasks.TTAddPieceHT == taskType { // apht 阶段完成加入 map
 		log.Infof("cache log: sector %s %s => host %s", sector, taskType.Short(), hostname)
 		sh.setSectorCache(sector.Number, hostname)
 	}
@@ -364,7 +368,7 @@ func (sh schedulerHt) afterTaskFinish(sector abi.SectorID, taskType sealtasks.Ta
 			sh.setCanDoNewSector(hostname, true)
 		}
 
-		// 智能调度
+		// 智能 pledge
 		todoNum := 0
 
 		for _, host := range sh.getAllPSet() {
@@ -402,11 +406,24 @@ func (sh schedulerHt) afterScheduled(sector abi.SectorID, taskType sealtasks.Tas
 			sh.setCanDoNewSector(hostname, false)
 		}
 
+		if sealtasks.TTPreCommit1 == taskType { // todo: 错误情况, 有没有更合理的处理方式
+			lastTaskType := sh.getWorkerSectorState(hostname, sector.Number)
+			if (sealtasks.TTPreCommit1.Short() == lastTaskType || sealtasks.TTPreCommit2.Short() == lastTaskType) && sh.getWorkerSectorLen(hostname) < sh.getWorkerMaxSectorNum(hostname) {
+				log.Debugf("host %s worker active from %t to true, because of it last taskType is %s and handing sector %v", hostname, sh.canDoNewSector(hostname), lastTaskType, sh.getWorkerSectorStates(hostname))
+				sh.setCanDoNewSector(hostname, true)
+			}
+		}
+
 	}
 
 	// 维护 已添加却未调度map
 
 	if sealtasks.TTPreCommit1 == taskType || sealtasks.TTAddPieceHT == taskType { // p1 或者 apht 说明已经进入了调用
 		delete(UnScheduling, sector.Number)
+	}
+
+	if sealtasks.TTPreCommit1 == taskType && sh.getSectorCache(sector.Number) == "" { // 这里针对官方交易, p1开始调度, 却没有cache, 加入map
+		log.Infof("cache log: sector %s %s => host %s", sector, taskType.Short(), hostname)
+		sh.setSectorCache(sector.Number, hostname)
 	}
 }

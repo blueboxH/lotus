@@ -21,9 +21,13 @@ type schedPrioCtxKey int
 var SchedPriorityKey schedPrioCtxKey
 var DefaultSchedPriority = 0
 var SelectorTimeout = 5 * time.Second
-var htSchedTasks = []sealtasks.TaskType{sealtasks.TTCommit1, sealtasks.TTPreCommit1, sealtasks.TTPreCommit2} // 列表顺序不能打乱
-var UnScheduling = make(map[abi.SectorNumber]struct{})                                                       // 已添加却未调度给P worker 的列表
-var APHTSets = make(map[abi.SectorNumber]struct{})                                                           // 已添加却未调度APHT的上去编号
+
+// ============================= mod ===========================
+var htSchedTasks = []sealtasks.TaskType{sealtasks.TTFinalize, sealtasks.TTCommit1, sealtasks.TTPreCommit2, sealtasks.TTPreCommit1} // 列表顺序不能打乱
+var UnScheduling = make(map[abi.SectorNumber]struct{})                                                                             // 已添加却未调度给P worker 的列表
+var APHTSets = make(map[abi.SectorNumber]struct{})                                                                                 // 已添加却未调度APHT的上去编号
+// ============================= mod ===========================
+
 var (
 	SchedWindows = 2
 )
@@ -467,7 +471,7 @@ func (sh *scheduler) trySched() {
 
 	wg.Wait()
 
-	log.Debugf("SCHED windows: %+v", windows)
+	//log.Debugf("SCHED windows: %+v", windows)
 	log.Debugf("SCHED Acceptable win: %+v", acceptableWindows)
 
 	// Step 2
@@ -567,7 +571,6 @@ func (sh *scheduler) tryHtSched() {
 		hostname := worker.info.Hostname
 		requestQueueMap := sh.htSchedMap[hostname]
 		schedWindow := schedWindow{}
-		log.Infof("try SCHED ASSIGNED host %s task", hostname)
 
 		for _, schedTask := range htSchedTasks {
 			needRes := ResourceTable[schedTask][sh.spt]
@@ -581,12 +584,25 @@ func (sh *scheduler) tryHtSched() {
 					continue
 				}
 
-				schedWindow.allocated.add(worker.info.Resources, needRes)
+				rpcCtx, cancel := context.WithTimeout(task.ctx, SelectorTimeout)
+				ok, err := task.sel.Ok(rpcCtx, task.taskType, sh.spt, worker)
+				cancel()
+				if err != nil {
+					log.Errorf("tryHtSched req.sel.Ok error: %+v", err)
+					continue
+				}
+
+				if !ok {
+					continue
+				}
 
 				schedWindow.todo = append(schedWindow.todo, task)
-				SchedulerHt.afterScheduled(task.sector, task.taskType, hostname)
-				log.Infof("tryHtSched SCHED ASSIGNED sector %d taskType %s to host %s", sector, task.taskType.Short(), hostname)
+
+				schedWindow.allocated.add(worker.info.Resources, needRes)
+				log.Infof("worker %s after sched Resources %v", hostname, worker.info.Resources)
 				delete(requestQueueMap[schedTask], sector)
+				log.Infof("tryHtSched SCHED ASSIGNED sector %d taskType %s to host %s", sector, task.taskType.Short(), hostname)
+				SchedulerHt.afterScheduled(task.sector, task.taskType, hostname)
 
 				if schedTask == sealtasks.TTPreCommit2 {
 					// 由于p2 并行, 一次取一个
@@ -826,12 +842,12 @@ func (sh *scheduler) dropWorker(wid WorkerID) {
 
 	w := sh.workers[wid]
 
-	sh.workerCleanup(wid, w)
 	// ==========================================      mod     ===================================
 	SchedulerHt.delPSet(w.info.Hostname)
 	SchedulerHt.delCSet(w.info.Hostname)
 	log.Infof("dropWorker %s and delete from pPet and cSet", w.info.Hostname)
 	// ==========================================      mod     ===================================
+	sh.workerCleanup(wid, w)
 
 	delete(sh.workers, wid)
 }
