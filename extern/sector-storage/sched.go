@@ -842,11 +842,6 @@ func (sh *scheduler) dropWorker(wid WorkerID) {
 
 	w := sh.workers[wid]
 
-	// ==========================================      mod     ===================================
-	SchedulerHt.delPSet(w.info.Hostname)
-	SchedulerHt.delCSet(w.info.Hostname)
-	log.Infof("dropWorker %s and delete from pPet and cSet", w.info.Hostname)
-	// ==========================================      mod     ===================================
 	sh.workerCleanup(wid, w)
 
 	delete(sh.workers, wid)
@@ -873,7 +868,11 @@ func (sh *scheduler) workerCleanup(wid WorkerID, w *workerHandle) {
 		}
 		sh.openWindows = newWindows
 
-		log.Debugf("dropWorker %d", wid)
+		// ==========================================      mod     ===================================
+		SchedulerHt.delPSet(w.info.Hostname)
+		SchedulerHt.delCSet(w.info.Hostname)
+		log.Infof("dropWorker %s and delete from pPet and cSet", w.info.Hostname)
+		// ==========================================      mod     ===================================
 
 		go func() {
 			if err := w.w.Close(); err != nil {
