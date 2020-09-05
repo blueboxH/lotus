@@ -3,6 +3,7 @@ module github.com/filecoin-project/lotus
 go 1.14
 
 replace github.com/supranational/blst => github.com/supranational/blst v0.1.2-alpha.1
+
 replace github.com/filecoin-project/go-jsonrpc => github.com/blueboxH/go-jsonrpc v0.1.2-0.20200905034814-f462ef237504
 
 require (
