@@ -4,7 +4,7 @@ go 1.14
 
 replace github.com/supranational/blst => github.com/supranational/blst v0.1.2-alpha.1
 
-replace github.com/filecoin-project/go-jsonrpc => github.com/blueboxH/go-jsonrpc v0.1.2-0.20200905105459-118c84d1e952
+replace github.com/filecoin-project/go-jsonrpc => github.com/blueboxH/go-jsonrpc v0.1.2-0.20200907131717-02b089c9ba28
 
 require (
 	contrib.go.opencensus.io/exporter/jaeger v0.1.0
