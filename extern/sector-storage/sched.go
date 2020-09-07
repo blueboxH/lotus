@@ -558,6 +558,9 @@ func (sh *scheduler) trySched() {
 
 // ==========================================      mod     ===================================
 func (sh *scheduler) tryHtSched() {
+
+	finLock := Exists("/filecoin/finLock")
+
 	var unSelectWindows []*schedWindowRequest
 	// 遍历所有机器, 查看机器状态取出适合做的任务
 	for _, openWindow := range sh.openWindows {
@@ -577,6 +580,12 @@ func (sh *scheduler) tryHtSched() {
 			if len(requestQueueMap[schedTask]) <= 0 {
 				continue
 			}
+
+			if schedTask == sealtasks.TTFinalize && finLock {
+				log.Infof("TTFinalize Locked, skip it")
+				continue
+			}
+
 			log.Debugf("start filter %s %s task, task len %d", hostname, schedTask.Short(), len(requestQueueMap[schedTask]))
 			for sector, task := range requestQueueMap[schedTask] {
 				// TODO: allow bigger windows
