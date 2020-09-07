@@ -127,7 +127,7 @@ func (l *LocalWorker) Fetch(ctx context.Context, sector abi.SectorID, fileType s
 
 func (l *LocalWorker) SealPreCommit1(ctx context.Context, sector abi.SectorID, ticket abi.SealRandomness, pieces []abi.PieceInfo) (out storage2.PreCommit1Out, err error) {
 	// ============================= mod ===========================
-	sep := []byte(";")
+	sep := []byte("--")
 	cacheRes, finish := isFinished(sector, sealtasks.TTPreCommit1)
 	SchedulerHt.SetTicketValue(sector.Number, ticket)
 	defer func() {
@@ -135,8 +135,8 @@ func (l *LocalWorker) SealPreCommit1(ctx context.Context, sector abi.SectorID, t
 	}()
 	if len(cacheRes) > 0 {
 		split := bytes.Split(cacheRes, sep)
-		if len(split) == 2 {
-			return split[0], nil
+		if len(split) == 3 { // 有3个的时候,
+			return split[2], nil
 		} else {
 			log.Infof("sector %s %s get cacheRes from redis decode error, redo it: %s", sector, sealtasks.TTPreCommit1.Short(), cacheRes)
 		}
@@ -169,7 +169,7 @@ func (l *LocalWorker) SealPreCommit1(ctx context.Context, sector abi.SectorID, t
 
 func (l *LocalWorker) SealPreCommit2(ctx context.Context, sector abi.SectorID, phase1Out storage2.PreCommit1Out) (cids storage2.SectorCids, err error) {
 	// ============================= mod ===========================
-	sep := ";"
+	sep := "--"
 
 	cacheRes, finish := isFinished(sector, sealtasks.TTPreCommit2)
 	if len(cacheRes) > 0 {
