@@ -6,6 +6,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/lotus/extern/sector-storage"
 )
 
 func (m *Sealing) pledgeSector(ctx context.Context, sectorID abi.SectorID, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {
@@ -59,7 +60,7 @@ func (m *Sealing) PledgeSector() error {
 			log.Errorf("%+v", err)
 			return
 		}
-
+		sectorstorage.APHTSets[m.minerSector(sid).Number] = struct{}{}
 		pieces, err := m.pledgeSector(ctx, m.minerSector(sid), []abi.UnpaddedPieceSize{}, size)
 		if err != nil {
 			log.Errorf("%+v", err)

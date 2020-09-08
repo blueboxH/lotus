@@ -431,7 +431,7 @@ func (s *WindowPoStScheduler) runPost(ctx context.Context, di miner.DeadlineInfo
 	params.ChainCommitEpoch = commEpoch
 	params.ChainCommitRand = commRand
 
-	log.Infow("submitting window PoSt", "elapsed", elapsed)
+	log.Infow(">>>>>>>>>>>>>>>>>>>>   submitting window PoSt", "elapsed", elapsed)
 
 	return params, nil
 }

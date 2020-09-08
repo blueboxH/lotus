@@ -155,12 +155,13 @@ var runCmd = &cli.Command{
 	},
 	Action: func(cctx *cli.Context) error {
 		log.Info("Starting lotus worker")
-
 		if !cctx.Bool("enable-gpu-proving") {
 			if err := os.Setenv("BELLMAN_NO_GPU", "true"); err != nil {
 				return xerrors.Errorf("could not set no-gpu env: %+v", err)
 			}
 		}
+
+		sectorstorage.InitRedis() // 初始化redis
 
 		// Connect to storage-miner
 		var nodeApi api.StorageMiner
@@ -215,10 +216,8 @@ var runCmd = &cli.Command{
 
 		taskTypes = append(taskTypes, sealtasks.TTFetch, sealtasks.TTCommit1, sealtasks.TTFinalize)
 
-		if cctx.Bool("addpiece") {
-			taskTypes = append(taskTypes, sealtasks.TTAddPiece)
-		}
 		if cctx.Bool("precommit1") {
+			taskTypes = append(taskTypes, sealtasks.TTAddPieceHT)
 			taskTypes = append(taskTypes, sealtasks.TTPreCommit1)
 		}
 		if cctx.Bool("unseal") {
@@ -444,7 +443,21 @@ func watchMinerConn(ctx context.Context, cctx *cli.Context, nodeApi api.StorageM
 			return // graceful shutdown
 		}
 
-		log.Warnf("Connection with miner node lost, restarting")
+		// ============================= mod ===========================
+		stores.ReportHealth = false // 停止检查report 健康状态
+		hostname, _ := os.Hostname()
+		sectorstorage.SchedulerHt.AddToRSet(hostname)
+		for len(sectorstorage.DoingSectors) > 0 {
+			log.Warnf("Connection with miner node lost, after task finish will restarting, taskMap: %v", sectorstorage.DoingSectors)
+			iw := time.After(1 * time.Minute) // todo: 测试 1分钟一次, 上线改为5分钟
+			select {
+			case <-iw:
+				iw = nil
+			}
+		}
+		sectorstorage.SchedulerHt.DelRSet(hostname)
+		log.Infof("delete RSet %s", hostname)
+		// ============================= mod ===========================
 
 		exe, err := os.Executable()
 		if err != nil {

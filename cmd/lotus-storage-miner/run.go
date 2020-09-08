@@ -58,7 +58,6 @@ var runCmd = &cli.Command{
 				return err
 			}
 		}
-
 		nodeApi, ncloser, err := lcli.GetFullNodeAPI(cctx)
 		if err != nil {
 			return err

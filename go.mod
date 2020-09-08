@@ -4,6 +4,8 @@ go 1.14
 
 replace github.com/supranational/blst => github.com/supranational/blst v0.1.2-alpha.1
 
+replace github.com/filecoin-project/go-jsonrpc => github.com/blueboxH/go-jsonrpc v0.1.2-0.20200905025729-cc4c86c4be4a
+
 require (
 	contrib.go.opencensus.io/exporter/jaeger v0.1.0
 	contrib.go.opencensus.io/exporter/prometheus v0.1.0
@@ -45,6 +47,7 @@ require (
 	github.com/filecoin-project/test-vectors v0.0.0-20200907193218-2c0739eccce6
 	github.com/gbrlsnchs/jwt/v3 v3.0.0-beta.1
 	github.com/go-kit/kit v0.10.0
+	github.com/gomodule/redigo v1.8.0
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.4.2
@@ -109,6 +112,7 @@ require (
 	github.com/multiformats/go-multibase v0.0.3
 	github.com/multiformats/go-multihash v0.0.14
 	github.com/opentracing/opentracing-go v1.2.0
+	github.com/prometheus/common v0.10.0 // indirect
 	github.com/raulk/clock v1.1.0
 	github.com/stretchr/testify v1.6.1
 	github.com/supranational/blst v0.1.1
@@ -129,6 +133,7 @@ require (
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 	gotest.tools v2.2.0+incompatible
+	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
 
 replace github.com/golangci/golangci-lint => github.com/golangci/golangci-lint v1.18.0
