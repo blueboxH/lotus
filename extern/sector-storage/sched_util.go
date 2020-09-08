@@ -207,7 +207,8 @@ func (sh schedulerHt) getWorkerSectorState(hostname string, number abi.SectorNum
 }
 
 func (sh schedulerHt) setWorkerSectorState(hostname string, number abi.SectorNumber, taskType sealtasks.TaskType, status string) {
-	_, err := redo("hset", getRedisPrefix()+workerSectorStatesRedisPrefix+hostname, number, taskType.Short()+"-"+status)
+	_, err := redo("hset", getRedisPrefix()+workerSectorStatesRedisPrefix+hostname, number, taskType.Short())
+	//_, err := redo("hset", getRedisPrefix()+workerSectorStatesRedisPrefix+hostname, number, taskType.Short()+"-"+status) // todo
 	if err != nil {
 		log.Debug(err)
 	}

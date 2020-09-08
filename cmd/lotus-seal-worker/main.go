@@ -168,7 +168,7 @@ var runCmd = &cli.Command{
 		if cctx.Bool("custom-rpc-log") {
 			jsonrpc.CommandLogFlag = true
 		}
-		sectorstorage.InitRedis() // 初始化redis
+		//sectorstorage.InitRedis() // 初始化redis, 暂时不需要
 		// Connect to storage-miner
 		var nodeApi api.StorageMiner
 		var closer func()
