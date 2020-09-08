@@ -148,7 +148,7 @@ type workerResponse struct {
 }
 
 func newScheduler(spt abi.RegisteredSealProof) *scheduler {
-	initRedis()
+	InitRedis()
 	return &scheduler{
 		spt: spt,
 
@@ -700,8 +700,6 @@ func (sh *scheduler) runWorker(wid WorkerID) {
 		taskDone := make(chan struct{}, 1)
 		windowsRequested := 0
 
-		var activeWindows []*schedWindow
-
 		ctx, cancel := context.WithCancel(context.TODO())
 		defer cancel()
 
@@ -738,7 +736,9 @@ func (sh *scheduler) runWorker(wid WorkerID) {
 
 			select {
 			case w := <-scheduledWindows:
-				activeWindows = append(activeWindows, w)
+				worker.wndLk.Lock()
+				worker.activeWindows = append(worker.activeWindows, w)
+				worker.wndLk.Unlock()
 			case <-taskDone:
 				log.Debugw("task done", "workerid", wid)
 			case <-sh.closing:
@@ -749,44 +749,114 @@ func (sh *scheduler) runWorker(wid WorkerID) {
 				return
 			}
 
+			sh.workersLk.RLock()
+			worker.wndLk.Lock()
+
+			log.Infof(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> befor workerCompactWindows activeWindow %v", worker.activeWindows)
+			windowsRequested -= sh.workerCompactWindows(worker, wid)
+			log.Infof(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> after workerCompactWindows activeWindow %v", worker.activeWindows)
 		assignLoop:
 			// process windows in order
-			for len(activeWindows) > 0 {
-				// process tasks within a window in order
-				for len(activeWindows[0].todo) > 0 {
-					todo := activeWindows[0].todo[0]
-					needRes := ResourceTable[todo.taskType][sh.spt]
+			for len(worker.activeWindows) > 0 {
+				firstWindow := worker.activeWindows[0]
 
-					sh.workersLk.RLock()
+				// process tasks within a window, preferring tasks at lower indexes
+				for len(firstWindow.todo) > 0 {
+					tidx := -1
+
 					worker.lk.Lock()
-					ok := worker.preparing.canHandleRequest(needRes, wid, worker.info.Resources)
+					for t, todo := range firstWindow.todo {
+						needRes := ResourceTable[todo.taskType][sh.spt]
+						if worker.preparing.canHandleRequest(needRes, wid, "startPreparing", worker.info.Resources) {
+							tidx = t
+							break
+						}
+					}
 					worker.lk.Unlock()
 
-					if !ok {
-						sh.workersLk.RUnlock()
+					if tidx == -1 {
 						break assignLoop
 					}
 
+					todo := firstWindow.todo[tidx]
+
 					log.Debugf("assign worker sector %d", todo.sector.Number)
 					err := sh.assignWorker(taskDone, wid, worker, todo)
-					sh.workersLk.RUnlock()
 
 					if err != nil {
 						log.Error("assignWorker error: %+v", err)
 						go todo.respond(xerrors.Errorf("assignWorker error: %w", err))
 					}
 
-					activeWindows[0].todo = activeWindows[0].todo[1:]
+					// Note: we're not freeing window.allocated resources here very much on purpose
+					copy(firstWindow.todo[tidx:], firstWindow.todo[tidx+1:])
+					firstWindow.todo[len(firstWindow.todo)-1] = nil
+					firstWindow.todo = firstWindow.todo[:len(firstWindow.todo)-1]
 				}
 
-				copy(activeWindows, activeWindows[1:])
-				activeWindows[len(activeWindows)-1] = nil
-				activeWindows = activeWindows[:len(activeWindows)-1]
+				copy(worker.activeWindows, worker.activeWindows[1:])
+				worker.activeWindows[len(worker.activeWindows)-1] = nil
+				worker.activeWindows = worker.activeWindows[:len(worker.activeWindows)-1]
 
 				windowsRequested--
 			}
+
+			worker.wndLk.Unlock()
+			sh.workersLk.RUnlock()
 		}
 	}()
+}
+
+func (sh *scheduler) workerCompactWindows(worker *workerHandle, wid WorkerID) int {
+	// move tasks from older windows to newer windows if older windows
+	// still can fit them
+	if len(worker.activeWindows) > 1 {
+		for wi, window := range worker.activeWindows[1:] {
+			lower := worker.activeWindows[wi]
+			var moved []int
+
+			for ti, todo := range window.todo {
+				needRes := ResourceTable[todo.taskType][sh.spt]
+				if !lower.allocated.canHandleRequest(needRes, wid, "compactWindows", worker.info.Resources) {
+					continue
+				}
+
+				moved = append(moved, ti)
+				lower.todo = append(lower.todo, todo)
+				lower.allocated.add(worker.info.Resources, needRes)
+				window.allocated.free(worker.info.Resources, needRes)
+			}
+
+			if len(moved) > 0 {
+				newTodo := make([]*workerRequest, 0, len(window.todo)-len(moved))
+				for i, t := range window.todo {
+					if len(moved) > 0 && moved[0] == i {
+						moved = moved[1:]
+						continue
+					}
+
+					newTodo = append(newTodo, t)
+				}
+				window.todo = newTodo
+			}
+		}
+	}
+
+	var compacted int
+	var newWindows []*schedWindow
+
+	for _, window := range worker.activeWindows {
+		if len(window.todo) == 0 {
+			compacted++
+			continue
+		}
+
+		newWindows = append(newWindows, window)
+	}
+
+	worker.activeWindows = newWindows
+
+	return compacted
 }
 
 func (sh *scheduler) assignWorker(taskDone chan struct{}, wid WorkerID, w *workerHandle, req *workerRequest) error {

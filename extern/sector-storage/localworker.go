@@ -7,7 +7,6 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"time"
 
 	"github.com/elastic/go-sysinfo"
 	"github.com/hashicorp/go-multierror"
