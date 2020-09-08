@@ -3,6 +3,7 @@ package sealing
 import (
 	"bytes"
 	"context"
+
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-state-types/abi"
@@ -100,66 +101,6 @@ func (m *Sealing) handlePreCommit1(ctx statemachine.Context, sector SectorInfo) 
 		return ctx.Send(SectorSealPreCommit1Failed{xerrors.Errorf("getting ticket failed: %w", err)})
 	}
 
-	// ============================= mod ===========================
-	//cacheRes := sectorstorage.SchedulerHt.GetWorkerDoingSector(sealtasks.TTPreCommit1, sector.SectorNumber)
-	//if len(cacheRes) > 0 {
-	//	log.Infof("sector %s %s is done , will skip it, get %s", sector, sealtasks.TTPreCommit1, cacheRes)
-	//	split := bytes.Split(cacheRes, []byte(";"))
-	//	if len(split) == 2 {
-	//		cacheTicketValue := split[1]
-	//		epoch := sectorstorage.SchedulerHt.GetTicketValue(cacheTicketValue)
-	//		sectorstorage.SchedulerHt.DelTicketValue(cacheTicketValue)
-	//		if epoch == 0 {
-	//			sectorstorage.SchedulerHt.DelWorkerDoingSector(sealtasks.TTPreCommit1, sector.SectorNumber)
-	//			log.Infof("sector %s %s get ticketEpoch from redis error, redo it: %s", sector, sealtasks.TTPreCommit1.Short())
-	//		} else {
-	//			ticketEpoch = epoch
-	//			ticketValue = cacheTicketValue
-	//		}
-	//	} else {
-	//		sectorstorage.SchedulerHt.DelWorkerDoingSector(sealtasks.TTPreCommit1, sector.SectorNumber)
-	//		log.Infof("sector %s %s get cacheRes from redis decode error, redo it: %s", sector, sealtasks.TTPreCommit1.Short(), cacheRes)
-	//	}
-	//} else {
-	//	sectorstorage.SchedulerHt.SetTicketValue(ticketValue, ticketEpoch)
-	//}
-
-	//cacheRes := sectorstorage.SchedulerHt.GetWorkerDoingSector(sealtasks.TTPreCommit1, sector.SectorNumber)
-	//if len(cacheRes) > 0 {
-	//	log.Infof("sector %s %s is done , will skip it, get %s", sector, sealtasks.TTPreCommit1, cacheRes)
-	//	split := bytes.Split(cacheRes, []byte(";"))
-	//	if len(split) == 3 {
-	//		SectorPreCommit1{
-	//			PreCommit1Out: split[0],
-	//			TicketValue:   split[1],
-	//			TicketEpoch:   abi.ChainEpoch(split[3]),
-	//		}
-	//
-	//		pc1o := split[0]
-	//		cacheTicketValue := split[1]
-	//
-	//
-	//
-	//		epoch := sectorstorage.SchedulerHt.GetTicketValue(cacheTicketValue)
-	//		sectorstorage.SchedulerHt.DelTicketValue(cacheTicketValue)
-	//		if epoch == 0 {
-	//			sectorstorage.SchedulerHt.DelWorkerDoingSector(sealtasks.TTPreCommit1, sector.SectorNumber)
-	//			log.Infof("sector %s %s get ticketEpoch from redis error, redo it: %s", sector, sealtasks.TTPreCommit1.Short())
-	//		} else {
-	//			ticketEpoch = epoch
-	//			ticketValue = cacheTicketValue
-	//		}
-	//	} else {
-	//		sectorstorage.SchedulerHt.DelWorkerDoingSector(sealtasks.TTPreCommit1, sector.SectorNumber)
-	//		log.Infof("sector %s %s get cacheRes from redis decode error, redo it: %s", sector, sealtasks.TTPreCommit1.Short(), cacheRes)
-	//	}
-	//} else {
-	//	s := string(ticketValue)
-	//	bytes.Join([][]byte(ticketValue, []byte(ticketEpoch)), []byte(";"))
-	//	sectorstorage.SchedulerHt.SetTicketValue(sector.SectorNumber, )
-	//}
-	log.Infof("sector %s ticket %v, epoch %d", m.minerSector(sector.SectorNumber), ticketValue, ticketEpoch)
-	// ============================= mod ===========================
 	pc1o, err := m.sealer.SealPreCommit1(sector.sealingCtx(ctx.Context()), m.minerSector(sector.SectorNumber), ticketValue, sector.pieceInfos())
 	if err != nil {
 		return ctx.Send(SectorSealPreCommit1Failed{xerrors.Errorf("seal pre commit(1) failed: %w", err)})
