@@ -65,17 +65,17 @@ var ResourceTable = map[sealtasks.TaskType]map[abi.RegisteredSealProof]Resources
 	},
 	// ==========================================      mod     ===================================
 	sealtasks.TTAddPieceHT: {
-		abi.RegisteredSealProof_StackedDrg64GiBV1: Resources{ // This is probably a bit conservative
-			MaxMemory: 64 << 30,
-			MinMemory: 64 << 30,
+		abi.RegisteredSealProof_StackedDrg64GiBV1: Resources{
+			MaxMemory: 8 << 30,
+			MinMemory: 8 << 30,
 
 			Threads: 1,
 
 			BaseMinMemory: 1 << 30,
 		},
-		abi.RegisteredSealProof_StackedDrg32GiBV1: Resources{ // This is probably a bit conservative
-			MaxMemory: 32 << 30,
-			MinMemory: 32 << 30,
+		abi.RegisteredSealProof_StackedDrg32GiBV1: Resources{
+			MaxMemory: 4 << 30,
+			MinMemory: 4 << 30,
 
 			Threads: 1,
 

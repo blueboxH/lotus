@@ -20,7 +20,7 @@ const (
 )
 
 var order = map[TaskType]int{
-	TTAddPiece:     6, // least priority
+	TTAddPiece: 6, // least priority
 	// ==========================================      mod     ===================================
 	TTAddPieceHT: 6,
 	// ==========================================

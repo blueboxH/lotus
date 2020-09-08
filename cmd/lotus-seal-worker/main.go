@@ -155,6 +155,7 @@ var runCmd = &cli.Command{
 	},
 	Action: func(cctx *cli.Context) error {
 		log.Info("Starting lotus worker")
+
 		if !cctx.Bool("enable-gpu-proving") {
 			if err := os.Setenv("BELLMAN_NO_GPU", "true"); err != nil {
 				return xerrors.Errorf("could not set no-gpu env: %+v", err)
@@ -443,21 +444,7 @@ func watchMinerConn(ctx context.Context, cctx *cli.Context, nodeApi api.StorageM
 			return // graceful shutdown
 		}
 
-		// ============================= mod ===========================
-		stores.ReportHealth = false // 停止检查report 健康状态
-		hostname, _ := os.Hostname()
-		sectorstorage.SchedulerHt.AddToRSet(hostname)
-		for len(sectorstorage.DoingSectors) > 0 {
-			log.Warnf("Connection with miner node lost, after task finish will restarting, taskMap: %v", sectorstorage.DoingSectors)
-			iw := time.After(1 * time.Minute) // todo: 测试 1分钟一次, 上线改为5分钟
-			select {
-			case <-iw:
-				iw = nil
-			}
-		}
-		sectorstorage.SchedulerHt.DelRSet(hostname)
-		log.Infof("delete RSet %s", hostname)
-		// ============================= mod ===========================
+		log.Warnf("Connection with miner node lost, restarting")
 
 		exe, err := os.Executable()
 		if err != nil {

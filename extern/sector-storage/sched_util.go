@@ -2,8 +2,8 @@ package sectorstorage
 
 import (
 	"errors"
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/sealtasks"
-	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/gomodule/redigo/redis"
 	"io"
 	"os"
