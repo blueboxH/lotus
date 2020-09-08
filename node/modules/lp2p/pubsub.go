@@ -33,6 +33,7 @@ func init() {
 	pubsub.GossipSubDirectConnectInitialDelay = 30 * time.Second
 	pubsub.GossipSubIWantFollowupTime = 5 * time.Second
 	pubsub.GossipSubHistoryLength = 10
+	pubsub.GossipSubGossipFactor = 0.1
 }
 func ScoreKeeper() *dtypes.ScoreKeeper {
 	return new(dtypes.ScoreKeeper)
@@ -248,8 +249,8 @@ func GossipSub(in GossipIn) (service *pubsub.PubSub, err error) {
 		pubsub.GossipSubDlo = 0
 		pubsub.GossipSubDhi = 0
 		pubsub.GossipSubDout = 0
-		pubsub.GossipSubDlazy = 1024
-		pubsub.GossipSubGossipFactor = 0.5
+		pubsub.GossipSubDlazy = 64
+		pubsub.GossipSubGossipFactor = 0.25
 		pubsub.GossipSubPruneBackoff = 5 * time.Minute
 		// turn on PX
 		options = append(options, pubsub.WithPeerExchange(true))
@@ -275,6 +276,30 @@ func GossipSub(in GossipIn) (service *pubsub.PubSub, err error) {
 
 		options = append(options, pubsub.WithDirectPeers(directPeerInfo))
 	}
+
+	// validation queue RED
+	pgTopicWeights := map[string]float64{
+		drandTopic:                 5,
+		build.BlocksTopic(in.Nn):   10,
+		build.MessagesTopic(in.Nn): 1,
+	}
+	var pgParams *pubsub.PeerGaterParams
+
+	if isBootstrapNode {
+		pgParams = pubsub.NewPeerGaterParams(
+			0.33,
+			pubsub.ScoreParameterDecay(2*time.Minute),
+			pubsub.ScoreParameterDecay(10*time.Minute),
+		).WithTopicDeliveryWeights(pgTopicWeights)
+	} else {
+		pgParams = pubsub.NewPeerGaterParams(
+			0.33,
+			pubsub.ScoreParameterDecay(2*time.Minute),
+			pubsub.ScoreParameterDecay(time.Hour),
+		).WithTopicDeliveryWeights(pgTopicWeights)
+	}
+
+	options = append(options, pubsub.WithPeerGater(pgParams))
 
 	// tracer
 	if in.Cfg.RemoteTracer != "" {

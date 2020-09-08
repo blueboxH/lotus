@@ -14,9 +14,10 @@ import (
 	"github.com/filecoin-project/lotus/chain/types"
 
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/specs-actors/actors/abi/big"
+	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/go-state-types/big"
+	"github.com/filecoin-project/go-state-types/exitcode"
 	"github.com/filecoin-project/specs-actors/actors/builtin"
-	"github.com/filecoin-project/specs-actors/actors/runtime/exitcode"
 
 	"go.uber.org/fx"
 	"golang.org/x/xerrors"
@@ -36,28 +37,11 @@ func (a *GasAPI) GasEstimateFeeCap(ctx context.Context, msg *types.Message, maxq
 	tsk types.TipSetKey) (types.BigInt, error) {
 	ts := a.Chain.GetHeaviestTipSet()
 
-	var act types.Actor
-	err := a.Stmgr.WithParentState(ts, a.Stmgr.WithActor(msg.From, stmgr.GetActor(&act)))
-	if err != nil {
-		return types.NewInt(0), xerrors.Errorf("getting actor: %w", err)
-	}
-
 	parentBaseFee := ts.Blocks()[0].ParentBaseFee
 	increaseFactor := math.Pow(1.+1./float64(build.BaseFeeMaxChangeDenom), float64(maxqueueblks))
 
 	feeInFuture := types.BigMul(parentBaseFee, types.NewInt(uint64(increaseFactor*(1<<8))))
-	feeInFuture = types.BigDiv(feeInFuture, types.NewInt(1<<8))
-
-	gasLimitBig := types.NewInt(uint64(msg.GasLimit))
-	maxAccepted := types.BigDiv(act.Balance, types.NewInt(MaxSpendOnFeeDenom))
-	expectedFee := types.BigMul(feeInFuture, gasLimitBig)
-
-	out := feeInFuture
-	if types.BigCmp(expectedFee, maxAccepted) > 0 {
-		log.Warnf("Expected fee for message higher than tolerance: %s > %s, setting to tolerance",
-			types.FIL(expectedFee), types.FIL(maxAccepted))
-		out = types.BigDiv(maxAccepted, gasLimitBig)
-	}
+	out := types.BigDiv(feeInFuture, types.NewInt(1<<8))
 
 	if msg.GasPremium != types.EmptyInt {
 		out = types.BigAdd(out, msg.GasPremium)
@@ -224,4 +208,20 @@ func (a *GasAPI) GasEstimateMessageGas(ctx context.Context, msg *types.Message, 
 	capGasFee(msg, spec.Get().MaxFee)
 
 	return msg, nil
+}
+
+func capGasFee(msg *types.Message, maxFee abi.TokenAmount) {
+	if maxFee.Equals(big.Zero()) {
+		maxFee = types.NewInt(build.FilecoinPrecision / 10)
+	}
+
+	gl := types.NewInt(uint64(msg.GasLimit))
+	totalFee := types.BigMul(msg.GasFeeCap, gl)
+
+	if totalFee.LessThanEqual(maxFee) {
+		return
+	}
+
+	msg.GasFeeCap = big.Div(maxFee, gl)
+	msg.GasPremium = big.Min(msg.GasFeeCap, msg.GasPremium) // cap premium at FeeCap
 }

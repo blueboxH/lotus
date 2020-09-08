@@ -5,16 +5,17 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"strconv"
 	"sync"
 
-	"github.com/filecoin-project/specs-actors/actors/crypto"
+	"github.com/filecoin-project/go-state-types/crypto"
 	"github.com/minio/blake2b-simd"
 
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/specs-actors/actors/util/adt"
 
 	"github.com/filecoin-project/lotus/api"
@@ -50,6 +51,8 @@ var blockValidationCacheKeyPrefix = dstore.NewKey("blockValidation")
 
 var DefaultTipSetCacheSize = 8192
 var DefaultMsgMetaCacheSize = 2048
+
+var ErrNotifieeDone = errors.New("notifee is done and should be removed")
 
 func init() {
 	if s := os.Getenv("LOTUS_CHAIN_TIPSET_CACHE"); s != "" {
@@ -358,11 +361,33 @@ func (cs *ChainStore) reorgWorker(ctx context.Context, initialNotifees []ReorgNo
 					apply[i], apply[opp] = apply[opp], apply[i]
 				}
 
-				for _, hcf := range notifees {
-					if err := hcf(revert, apply); err != nil {
-						log.Error("head change func errored (BAD): ", err)
+				var toremove map[int]struct{}
+				for i, hcf := range notifees {
+					err := hcf(revert, apply)
+					if err != nil {
+						if err == ErrNotifieeDone {
+							if toremove == nil {
+								toremove = make(map[int]struct{})
+							}
+							toremove[i] = struct{}{}
+						} else {
+							log.Error("head change func errored (BAD): ", err)
+						}
 					}
 				}
+
+				if len(toremove) > 0 {
+					newNotifees := make([]ReorgNotifee, 0, len(notifees)-len(toremove))
+					for i, hcf := range notifees {
+						_, remove := toremove[i]
+						if remove {
+							continue
+						}
+						newNotifees = append(newNotifees, hcf)
+					}
+					notifees = newNotifees
+				}
+
 			case <-ctx.Done():
 				return
 			}
