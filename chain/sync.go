@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
+
 	"github.com/Gurpartap/async"
 	"github.com/hashicorp/go-multierror"
 	"github.com/ipfs/go-cid"
@@ -25,11 +27,11 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/go-state-types/crypto"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/specs-actors/actors/abi"
 	"github.com/filecoin-project/specs-actors/actors/builtin"
 	"github.com/filecoin-project/specs-actors/actors/builtin/power"
-	"github.com/filecoin-project/specs-actors/actors/crypto"
 	"github.com/filecoin-project/specs-actors/actors/util/adt"
 	blst "github.com/supranational/blst/bindings/go"
 
@@ -123,6 +125,10 @@ type Syncer struct {
 	receiptTracker *blockReceiptTracker
 
 	verifier ffiwrapper.Verifier
+
+	windowSize int
+
+	tickerCtxCancel context.CancelFunc
 }
 
 // NewSyncer creates a new Syncer object.
@@ -148,6 +154,7 @@ func NewSyncer(sm *stmgr.StateManager, bsync *blocksync.BlockSync, connmgr connm
 		receiptTracker: newBlockReceiptTracker(),
 		connmgr:        connmgr,
 		verifier:       verifier,
+		windowSize:     defaultMessageFetchWindowSize,
 
 		incoming: pubsub.New(50),
 	}
@@ -163,11 +170,35 @@ func NewSyncer(sm *stmgr.StateManager, bsync *blocksync.BlockSync, connmgr connm
 }
 
 func (syncer *Syncer) Start() {
+	tickerCtx, tickerCtxCancel := context.WithCancel(context.Background())
 	syncer.syncmgr.Start()
+
+	syncer.tickerCtxCancel = tickerCtxCancel
+
+	go syncer.runMetricsTricker(tickerCtx)
+}
+
+func (syncer *Syncer) runMetricsTricker(tickerCtx context.Context) {
+	genesisTime := time.Unix(int64(syncer.Genesis.MinTimestamp()), 0)
+	ticker := build.Clock.Ticker(time.Duration(build.BlockDelaySecs) * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			sinceGenesis := build.Clock.Now().Sub(genesisTime)
+			expectedHeight := int64(sinceGenesis.Seconds()) / int64(build.BlockDelaySecs)
+
+			stats.Record(tickerCtx, metrics.ChainNodeHeightExpected.M(expectedHeight))
+		case <-tickerCtx.Done():
+			return
+		}
+	}
 }
 
 func (syncer *Syncer) Stop() {
 	syncer.syncmgr.Stop()
+	syncer.tickerCtxCancel()
 }
 
 // InformNewHead informs the syncer about a new potential tipset
@@ -655,7 +686,7 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 	validationStart := build.Clock.Now()
 	defer func() {
 		stats.Record(ctx, metrics.BlockValidationDurationMilliseconds.M(metrics.SinceInMilliseconds(validationStart)))
-		log.Infow("block validation", "took", time.Since(validationStart), "height", b.Header.Height)
+		log.Infow("block validation", "took", time.Since(validationStart), "height", b.Header.Height, "age", time.Since(time.Unix(int64(b.Header.Timestamp), 0)))
 	}()
 
 	ctx, span := trace.StartSpan(ctx, "validateBlock")
@@ -950,7 +981,7 @@ func (syncer *Syncer) VerifyWinningPoStProof(ctx context.Context, h *types.Block
 		return xerrors.Errorf("getting winning post sector set: %w", err)
 	}
 
-	ok, err := ffiwrapper.ProofVerifier.VerifyWinningPoSt(ctx, abi.WinningPoStVerifyInfo{
+	ok, err := ffiwrapper.ProofVerifier.VerifyWinningPoSt(ctx, proof.WinningPoStVerifyInfo{
 		Randomness:        rand,
 		Proofs:            h.WinPoStProof,
 		ChallengedSectors: sectors,
@@ -1413,7 +1444,8 @@ func (syncer *Syncer) iterFullTipsets(ctx context.Context, headers []*types.TipS
 
 	span.AddAttributes(trace.Int64Attribute("num_headers", int64(len(headers))))
 
-	windowSize := defaultMessageFetchWindowSize
+	windowSize := syncer.windowSize
+mainLoop:
 	for i := len(headers) - 1; i >= 0; {
 		fts, err := syncer.store.TryFillTipSet(headers[i])
 		if err != nil {
@@ -1441,6 +1473,12 @@ func (syncer *Syncer) iterFullTipsets(ctx context.Context, headers []*types.TipS
 			nreq := batchSize - len(bstout)
 			bstips, err := syncer.Bsync.GetChainMessages(ctx, next, uint64(nreq))
 			if err != nil {
+				// TODO check errors for temporary nature
+				if windowSize > 1 {
+					windowSize /= 2
+					log.Infof("error fetching messages: %s; reducing window size to %d and trying again", err, windowSize)
+					continue mainLoop
+				}
 				return xerrors.Errorf("message processing failed: %w", err)
 			}
 
@@ -1475,8 +1513,23 @@ func (syncer *Syncer) iterFullTipsets(ctx context.Context, headers []*types.TipS
 				return xerrors.Errorf("message processing failed: %w", err)
 			}
 		}
+
+		if i >= windowSize {
+			newWindowSize := windowSize + 10
+			if newWindowSize > int(blocksync.MaxRequestLength) {
+				newWindowSize = int(blocksync.MaxRequestLength)
+			}
+			if newWindowSize > windowSize {
+				windowSize = newWindowSize
+				log.Infof("successfully fetched %d messages; increasing window size to %d", len(bstout), windowSize)
+			}
+		}
+
 		i -= batchSize
 	}
+
+	// remember our window size
+	syncer.windowSize = windowSize
 
 	return nil
 }

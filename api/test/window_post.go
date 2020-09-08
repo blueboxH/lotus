@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/filecoin-project/go-address"
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/mock"
 	sealing "github.com/filecoin-project/lotus/extern/storage-sealing"
-	"github.com/filecoin-project/specs-actors/actors/abi"
 	miner2 "github.com/filecoin-project/specs-actors/actors/builtin/miner"
 
 	"github.com/filecoin-project/lotus/api"
@@ -53,7 +53,7 @@ func TestPledgeSector(t *testing.T, b APIBuilder, blocktime time.Duration, nSect
 		defer close(done)
 		for mine {
 			build.Clock.Sleep(blocktime)
-			if err := sn[0].MineOne(ctx, bminer.MineReq{Done: func(bool, error) {
+			if err := sn[0].MineOne(ctx, bminer.MineReq{Done: func(bool, abi.ChainEpoch, error) {
 
 			}}); err != nil {
 				t.Error(err)

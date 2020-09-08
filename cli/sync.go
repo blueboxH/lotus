@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/go-state-types/abi"
 	cid "github.com/ipfs/go-cid"
 	"github.com/urfave/cli/v2"
 
@@ -180,11 +180,13 @@ func SyncWait(ctx context.Context, napi api.FullNode) error {
 		ss := state.ActiveSyncs[working]
 
 		var target []cid.Cid
+		var theight abi.ChainEpoch
 		if ss.Target != nil {
 			target = ss.Target.Cids()
+			theight = ss.Target.Height()
 		}
 
-		fmt.Printf("\r\x1b[2KWorker %d: Target: %s\tState: %s\tHeight: %d", working, target, chain.SyncStageString(ss.Stage), ss.Height)
+		fmt.Printf("\r\x1b[2KWorker %d: Target Height: %d\tTarget: %s\tState: %s\tHeight: %d", working, theight, target, chain.SyncStageString(ss.Stage), ss.Height)
 
 		if time.Now().Unix()-int64(head.MinTimestamp()) < int64(build.BlockDelaySecs) {
 			fmt.Println("\nDone!")

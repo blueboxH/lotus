@@ -3,7 +3,7 @@ package beacon
 import (
 	"context"
 
-	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/go-state-types/abi"
 	logging "github.com/ipfs/go-log"
 	"golang.org/x/xerrors"
 
@@ -35,6 +35,10 @@ func ValidateBlockValues(b RandomBeacon, h *types.BlockHeader, prevEntry types.B
 			return xerrors.Errorf("expected not to have any beacon entries in this block, got %d", len(h.BeaconEntries))
 		}
 		return nil
+	}
+
+	if len(h.BeaconEntries) == 0 {
+		return xerrors.Errorf("expected to have beacon entries in this block, but didn't find any")
 	}
 
 	last := h.BeaconEntries[len(h.BeaconEntries)-1]

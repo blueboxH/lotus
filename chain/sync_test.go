@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
+
 	"github.com/ipfs/go-cid"
 
 	ds "github.com/ipfs/go-datastore"
@@ -16,8 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/filecoin-project/go-address"
-	"github.com/filecoin-project/specs-actors/actors/abi"
-	"github.com/filecoin-project/specs-actors/actors/abi/big"
+	"github.com/filecoin-project/go-state-types/abi"
+	"github.com/filecoin-project/go-state-types/big"
 	"github.com/filecoin-project/specs-actors/actors/builtin/miner"
 	"github.com/filecoin-project/specs-actors/actors/builtin/power"
 	"github.com/filecoin-project/specs-actors/actors/builtin/verifreg"
@@ -32,6 +34,7 @@ import (
 	"github.com/filecoin-project/lotus/node"
 	"github.com/filecoin-project/lotus/node/impl"
 	"github.com/filecoin-project/lotus/node/modules"
+	"github.com/filecoin-project/lotus/node/modules/dtypes"
 	"github.com/filecoin-project/lotus/node/repo"
 )
 
@@ -231,6 +234,7 @@ func (tu *syncTestUtil) addSourceNode(gen int) {
 		node.Repo(sourceRepo),
 		node.MockHost(tu.mn),
 		node.Test(),
+		node.Override(new(dtypes.Bootstrapper), dtypes.Bootstrapper(true)),
 
 		node.Override(new(modules.Genesis), modules.LoadGenesis(genesis)),
 	)
@@ -263,6 +267,7 @@ func (tu *syncTestUtil) addClientNode() int {
 		node.Repo(repo.NewMemory(nil)),
 		node.MockHost(tu.mn),
 		node.Test(),
+		node.Override(new(dtypes.Bootstrapper), dtypes.Bootstrapper(true)),
 
 		node.Override(new(modules.Genesis), modules.LoadGenesis(tu.genesis)),
 	)
@@ -442,8 +447,8 @@ func (wpp badWpp) GenerateCandidates(context.Context, abi.PoStRandomness, uint64
 	return []uint64{1}, nil
 }
 
-func (wpp badWpp) ComputeProof(context.Context, []abi.SectorInfo, abi.PoStRandomness) ([]abi.PoStProof, error) {
-	return []abi.PoStProof{
+func (wpp badWpp) ComputeProof(context.Context, []proof.SectorInfo, abi.PoStRandomness) ([]proof.PoStProof, error) {
+	return []proof.PoStProof{
 		{
 			PoStProof:  abi.RegisteredPoStProof_StackedDrgWinning2KiBV1,
 			ProofBytes: []byte("evil"),

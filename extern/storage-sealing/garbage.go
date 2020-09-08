@@ -5,8 +5,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage"
-	"github.com/filecoin-project/specs-actors/actors/abi"
 )
 
 func (m *Sealing) pledgeSector(ctx context.Context, sectorID abi.SectorID, existingPieceSizes []abi.UnpaddedPieceSize, sizes ...abi.UnpaddedPieceSize) ([]abi.PieceInfo, error) {

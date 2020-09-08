@@ -14,11 +14,12 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/filecoin-project/specs-actors/actors/abi"
+	"github.com/filecoin-project/go-state-types/abi"
 
 	"github.com/filecoin-project/lotus/extern/sector-storage/fsutil"
 )
 
+// ============================= mod ===========================
 var CephStoragePath = getCephStoragePath()
 
 func getCephStoragePath() string {
@@ -30,6 +31,7 @@ func getCephStoragePath() string {
 	return cephStoragePath
 }
 
+// ============================= mod ===========================
 type StoragePath struct {
 	ID     ID
 	Weight uint64
