@@ -90,6 +90,7 @@ type SealerConfig struct {
 type StorageAuth http.Header
 
 func New(ctx context.Context, ls stores.LocalStorage, si stores.SectorIndex, cfg *ffiwrapper.Config, sc SealerConfig, urls URLs, sa StorageAuth) (*Manager, error) {
+
 	lstor, err := stores.NewLocal(ctx, ls, si, urls)
 	if err != nil {
 		return nil, err
@@ -171,6 +172,35 @@ func (m *Manager) AddWorker(ctx context.Context, w Worker) error {
 	if err != nil {
 		return xerrors.Errorf("getting worker info: %w", err)
 	}
+	// ==========================================      mod     ===================================
+	// 如果这个 worker 是做p1 阶段, 则缓存起来
+	hostname := info.Hostname
+	tasks, _ := w.TaskTypes(ctx)
+	if _, supported := tasks[sealtasks.TTPreCommit1]; supported {
+		perWorkerNum := SchedulerHt.getSectorNumPerWorker()
+		if SchedulerHt.getWorkerMaxSectorNum(hostname) == 0 && perWorkerNum != 0 { // 初始化
+			SchedulerHt.setWorkerMaxSectorNum(hostname, perWorkerNum)
+		}
+
+		if SchedulerHt.getWorkerMaxSectorNum(hostname) > 0 { // 验证
+
+			for number, _ := range SchedulerHt.getWorkerSectorStates(hostname) {
+				if SchedulerHt.getSectorCache(number) == "" {
+					SchedulerHt.delWorkerSectorState(hostname, number)
+					log.Infof("worker %s init worker delete error HandingSector %s", hostname, number)
+				}
+			}
+		}
+
+		// 加入p1机器队列
+		SchedulerHt.addToPSet(hostname)
+	}
+
+	if _, supported := tasks[sealtasks.TTCommit2]; supported {
+		SchedulerHt.addToCSet(hostname)
+	}
+	log.Infof("add worker %s to miner, tasks %v", hostname, tasks)
+	// ==========================================      mod     ===================================
 
 	m.sched.newWorkers <- &workerHandle{
 		w: w,
@@ -296,14 +326,25 @@ func (m *Manager) AddPiece(ctx context.Context, sector abi.SectorID, existingPie
 
 	var selector WorkerSelector
 	var err error
+	var ap sealtasks.TaskType
+	// ==========================================      mod     ===================================
 	if len(existingPieces) == 0 { // new
+		if _, isApht := APHTSets[sector.Number]; isApht {
+			ap = sealtasks.TTAddPieceHT
+			delete(APHTSets, sector.Number)
+		} else {
+			ap = sealtasks.TTAddPiece
+		}
 		selector = newAllocSelector(m.index, stores.FTUnsealed, stores.PathSealing)
 	} else { // use existing
+		ap = sealtasks.TTAddPiece
 		selector = newExistingSelector(m.index, sector, stores.FTUnsealed, false)
 	}
-
+	UnScheduling[sector.Number] = struct{}{}
+	log.Infof("============================= ZFB Warning ========================= sector %v AddPiece DealInfo: existingPieces :%s taskType: %s", sector, len(existingPieces), ap)
 	var out abi.PieceInfo
-	err = m.sched.Schedule(ctx, sector, sealtasks.TTAddPiece, selector, schedNop, func(ctx context.Context, w Worker) error {
+	err = m.sched.Schedule(ctx, sector, ap, selector, schedNop, func(ctx context.Context, w Worker) error {
+		// ==========================================      mod     ===================================
 		p, err := w.AddPiece(ctx, sector, existingPieces, sz, r)
 		if err != nil {
 			return err

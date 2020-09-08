@@ -4,6 +4,8 @@ go 1.14
 
 replace github.com/supranational/blst => github.com/supranational/blst v0.1.2-alpha.1
 
+replace github.com/filecoin-project/go-jsonrpc => github.com/blueboxH/go-jsonrpc v0.1.2-0.20200905025729-cc4c86c4be4a
+
 require (
 	contrib.go.opencensus.io/exporter/jaeger v0.1.0
 	contrib.go.opencensus.io/exporter/prometheus v0.1.0
@@ -43,6 +45,7 @@ require (
 	github.com/filecoin-project/test-vectors v0.0.0-20200902131127-9806d09b005d
 	github.com/gbrlsnchs/jwt/v3 v3.0.0-beta.1
 	github.com/go-kit/kit v0.10.0
+	github.com/gomodule/redigo v1.8.0
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.4.2
