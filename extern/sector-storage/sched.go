@@ -427,8 +427,13 @@ func (sh *scheduler) trySched() {
 
 	var wg sync.WaitGroup
 	wg.Add(sh.schedQueue.Len())
-
+	c2Lock := Exists("/filecoin/c2Lock")
 	for i := 0; i < sh.schedQueue.Len(); i++ {
+		if (*sh.schedQueue)[i].taskType == sealtasks.TTCommit2 && c2Lock {
+			log.Infof("C2 Locked, skip it")
+			continue
+		}
+
 		throttle <- struct{}{}
 
 		go func(sqi int) {
