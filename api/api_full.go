@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
@@ -156,9 +157,15 @@ type FullNode interface {
 	// yet synced block headers.
 	SyncIncomingBlocks(ctx context.Context) (<-chan *types.BlockHeader, error)
 
+	// SyncCheckpoint marks a blocks as checkpointed, meaning that it won't ever fork away from it.
+	SyncCheckpoint(ctx context.Context, tsk types.TipSetKey) error
+
 	// SyncMarkBad marks a blocks as bad, meaning that it won't ever by synced.
 	// Use with extreme caution.
 	SyncMarkBad(ctx context.Context, bcid cid.Cid) error
+
+	// SyncUnmarkBad unmarks a blocks as bad, making it possible to be validated and synced again.
+	SyncUnmarkBad(ctx context.Context, bcid cid.Cid) error
 
 	// SyncCheckBad checks if a block was marked as bad, and if it was, returns
 	// the reason.
@@ -709,7 +716,27 @@ const (
 	StageMessages
 	StageSyncComplete
 	StageSyncErrored
+	StageFetchingMessages
 )
+
+func (v SyncStateStage) String() string {
+	switch v {
+	case StageHeaders:
+		return "header sync"
+	case StagePersistHeaders:
+		return "persisting headers"
+	case StageMessages:
+		return "message sync"
+	case StageSyncComplete:
+		return "complete"
+	case StageSyncErrored:
+		return "error"
+	case StageFetchingMessages:
+		return "fetching messages"
+	default:
+		return fmt.Sprintf("<unknown: %d>", v)
+	}
+}
 
 type MpoolChange int
 
