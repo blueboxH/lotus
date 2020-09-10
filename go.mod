@@ -45,8 +45,8 @@ require (
 	github.com/filecoin-project/test-vectors/schema v0.0.1
 	github.com/gbrlsnchs/jwt/v3 v3.0.0-beta.1
 	github.com/go-kit/kit v0.10.0
-	github.com/gomodule/redigo v1.8.0
 	github.com/go-ole/go-ole v1.2.4 // indirect
+	github.com/gomodule/redigo v1.8.0
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.4.2
