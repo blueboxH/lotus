@@ -4,8 +4,6 @@ package ffiwrapper
 
 import (
 	"context"
-	"github.com/filecoin-project/lotus/build"
-	"time"
 
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
 
@@ -35,18 +33,28 @@ func (sb *Sealer) GenerateWinningPoSt(ctx context.Context, minerID abi.ActorID, 
 }
 
 func (sb *Sealer) GenerateWindowPoSt(ctx context.Context, minerID abi.ActorID, sectorInfo []proof.SectorInfo, randomness abi.PoStRandomness) ([]proof.PoStProof, []abi.SectorID, error) {
-	tsStart := build.Clock.Now()
 	randomness[31] &= 0x3f
 	privsectors, skipped, done, err := sb.pubSectorToPriv(ctx, minerID, sectorInfo, nil, abi.RegisteredSealProof.RegisteredWindowPoStProof)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("gathering sector info: %w", err)
 	}
 	defer done()
-	log.Infow(">>>>>>>>>>>>>>>>>>>>   pubSectorToPriv cost", "elapsed", time.Since(tsStart))
-	gwpStart := build.Clock.Now()
-	proof, err := ffi.GenerateWindowPoSt(minerID, privsectors, randomness)
-	log.Infow(">>>>>>>>>>>>>>>>>>>>   GenerateWindowPoSt cost", "elapsed", time.Since(gwpStart))
-	return proof, skipped, err
+
+	if len(skipped) > 0 {
+		return nil, skipped, xerrors.Errorf("pubSectorToPriv skipped some sectors")
+	}
+
+	proof, faulty, err := ffi.GenerateWindowPoSt(minerID, privsectors, randomness)
+
+	var faultyIDs []abi.SectorID
+	for _, f := range faulty {
+		faultyIDs = append(faultyIDs, abi.SectorID{
+			Miner:  minerID,
+			Number: f,
+		})
+	}
+
+	return proof, faultyIDs, err
 }
 
 func (sb *Sealer) pubSectorToPriv(ctx context.Context, mid abi.ActorID, sectorInfo []proof.SectorInfo, faults []abi.SectorNumber, rpt func(abi.RegisteredSealProof) (abi.RegisteredPoStProof, error)) (ffi.SortedPrivateSectorInfo, []abi.SectorID, func(), error) {
