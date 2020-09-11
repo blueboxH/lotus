@@ -429,10 +429,6 @@ func (sh *scheduler) trySched() {
 	wg.Add(sh.schedQueue.Len())
 	c2Lock := Exists("/filecoin/c2Lock")
 	for i := 0; i < sh.schedQueue.Len(); i++ {
-		if (*sh.schedQueue)[i].taskType == sealtasks.TTCommit2 && c2Lock {
-			log.Infof("C2 Locked, skip it")
-			continue
-		}
 
 		throttle <- struct{}{}
 
@@ -443,6 +439,10 @@ func (sh *scheduler) trySched() {
 			}()
 
 			task := (*sh.schedQueue)[sqi]
+			if task.taskType == sealtasks.TTCommit2 && c2Lock {
+				log.Infof("C2 Locked, skip it")
+				return
+			}
 			needRes := ResourceTable[task.taskType][sh.spt]
 
 			task.indexHeap = sqi
@@ -652,7 +652,7 @@ func (sh *scheduler) tryHtSched() {
 				schedWindow.todo = append(schedWindow.todo, task)
 
 				schedWindow.allocated.add(worker.info.Resources, needRes)
-				log.Infof("worker %s after sched Resources %v", hostname, worker.info.Resources)
+				log.Infof("worker %s after sched Resources %v", hostname, schedWindow.allocated)
 				delete(requestQueueMap[schedTask], sector)
 				log.Infof("tryHtSched SCHED ASSIGNED sector %d taskType %s to host %s", sector, task.taskType.Short(), hostname)
 				SchedulerHt.afterScheduled(task.sector, task.taskType, hostname)
