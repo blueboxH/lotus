@@ -460,7 +460,54 @@ func (m *Manager) FinalizeSector(ctx context.Context, sector abi.SectorID, keepU
 	selector := newExistingSelector(m.index, sector, stores.FTCache|stores.FTSealed, false)
 
 	err := m.sched.Schedule(ctx, sector, sealtasks.TTFinalize, selector,
-		schedFetch(sector, stores.FTCache|stores.FTSealed|unsealed, stores.PathSealing, stores.AcquireMove),
+		func(ctx context.Context, w Worker) error {
+			minerStorageInfos, err := m.localStore.Local(ctx)
+			if err != nil {
+				return err
+			}
+
+			var (
+				workerStorageID stores.ID
+				minerStorageID  stores.ID
+				minerFileTypes  stores.SectorFileType
+			)
+			for _, minerStorageInfo := range minerStorageInfos {
+				if minerStorageInfo.CanStore && minerStorageInfo.LocalPath == "/filecoin/lotusminer" {
+					minerStorageID = minerStorageInfo.ID
+				}
+			}
+			log.Infof("= ZFB Warning = miner storage id: %s for %v", minerStorageID, sector)
+			for _, ptype := range pathTypes {
+				if ptype&(stores.FTSealed|stores.FTCache|unsealed) == 0 {
+					continue
+				}
+				storageInfos, err := m.index.StorageFindSector(ctx, sector, ptype, 0, false)
+				if err != nil {
+					return err
+				}
+				for _, storageInfo := range storageInfos {
+					log.Infof("= ZFB Warning = Finalize file found , %v 's %s", sector, storageInfo.URLs)
+					if storageInfo.ID == minerStorageID {
+						//  declare local file fake transferred to remote
+						minerFileTypes |= ptype
+					} else {
+						workerStorageID = storageInfo.ID
+					}
+				}
+			}
+			log.Infof("= ZFB Warning = miner storage has a transfer fileType %s for %s", minerFileTypes, sector)
+			for _, ptype := range pathTypes {
+				if ptype&minerFileTypes == 0 {
+					continue
+				}
+				log.Infof("= ZFB Warning = Finalized file in the wrong place,declare it back %v 's %s", sector, ptype.String())
+				err := m.index.StorageDeclareSector(ctx, workerStorageID, sector, ptype, true)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		},
 		func(ctx context.Context, w Worker) error {
 			return w.FinalizeSector(ctx, sector, keepUnsealed)
 		})
