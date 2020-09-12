@@ -173,8 +173,12 @@ var provingInfoCmd = &cli.Command{
 		faults := uint64(0)
 		recovering := uint64(0)
 
-		for _, partitions := range parts {
-			for _, partition := range partitions {
+		for di, partitions := range parts {
+			for pi, partition := range partitions {
+				sectorsIds, _ := partition.Sectors.All(miner.SectorsMax)
+				terminatedIds, _ := partition.Terminated.All(miner.SectorsMax)
+				faultsIds, _ := partition.Faults.All(miner.SectorsMax)
+				fmt.Printf("deadline %d partition %d sectors : %v , terminated: %v, faults: %v\n ", di, pi, sectorsIds, terminatedIds, faultsIds)
 				sc, err := partition.Sectors.Count()
 				if err != nil {
 					return xerrors.Errorf("count partition sectors: %w", err)
