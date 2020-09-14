@@ -103,7 +103,7 @@ var runCmd = &cli.Command{
 		},
 		&cli.BoolFlag{
 			Name:  "custom-rpc-log",
-			Value:true,
+			Value: true,
 		},
 		&cli.StringFlag{
 			Name:   "address",
@@ -178,7 +178,7 @@ var runCmd = &cli.Command{
 		for {
 			nodeApi, closer, err = lcli.GetStorageMinerAPI(cctx,
 				jsonrpc.WithNoReconnect(),
-				jsonrpc.WithTimeout(30*time.Second))
+				jsonrpc.WithTimeout(120*time.Second))
 			if err == nil {
 				break
 			}
