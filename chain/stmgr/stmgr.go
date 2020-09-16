@@ -201,10 +201,10 @@ func (sm *StateManager) ApplyBlocks(ctx context.Context, parentEpoch abi.ChainEp
 
 	for i := parentEpoch; i < epoch; i++ {
 		// handle state forks
-		err = sm.handleStateForks(ctx, vmi.StateTree(), i)
-		if err != nil {
-			return cid.Undef, cid.Undef, xerrors.Errorf("error handling state forks: %w", err)
-		}
+		//err = sm.handleStateForks(ctx, vmi.StateTree(), i)
+		//if err != nil {
+		//	return cid.Undef, cid.Undef, xerrors.Errorf("error handling state forks: %w", err)
+		//}
 
 		if i > parentEpoch {
 			// run cron for null rounds if any
