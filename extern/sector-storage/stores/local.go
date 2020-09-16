@@ -39,15 +39,27 @@ func getMinerStoragePath() (filePaths map[SectorFileType]string, err error) {
 	defaultMinerStoragePath := "/cephfs/lotusminer_public/"
 	minerStoragePath := defaultMinerStoragePath
 	if os.Getenv("MINER_STORAGE_PATH") != "" {
+		if !filepath.IsAbs(os.Getenv("MINER_STORAGE_PATH")) {
+			return nil, NewMinerStoragePathError("miner storage path must be absolute path")
+		}
 		minerStoragePath = os.Getenv("MINER_STORAGE_PATH")
 	}
 	filePaths = make(map[SectorFileType]string)
 	for _, fileType := range PathTypes {
-		if !Exists(filepath.Join(minerStoragePath, fileType.String())) {
+		envOfPathType := os.Getenv("MINER_STORAGE_PATH_" + strings.ToUpper(fileType.String()))
+		if envOfPathType != "" {
+			if !filepath.IsAbs(envOfPathType) {
+				return nil, NewMinerStoragePathError("mminer storage path must be absolute path")
+			}
+			filePaths[fileType] = envOfPathType
+		} else {
+			filePaths[fileType] = filepath.Join(minerStoragePath, fileType.String())
+		}
+
+		if !Exists(filePaths[fileType]) {
 			err = NewMinerStoragePathError("Path " + filepath.Join(minerStoragePath, fileType.String()) + "not Exist")
 			return nil, err
 		}
-		filePaths[fileType] = filepath.Join(minerStoragePath, fileType.String())
 	}
 	return filePaths, nil
 }
