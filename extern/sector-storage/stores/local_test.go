@@ -93,3 +93,10 @@ func TestLocalStorage(t *testing.T) {
 
 	// TODO: put more things here
 }
+func TestMinerPathMap(t *testing.T) {
+	if filePaths, err := getMinerStoragePath(); err != nil {
+		t.Logf("%v", filePaths)
+	} else {
+		t.Errorf("%s", err)
+	}
+}
