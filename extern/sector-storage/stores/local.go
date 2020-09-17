@@ -326,6 +326,8 @@ func (st *Local) reportHealth(ctx context.Context) {
 func (st *Local) SendSectorToMiner(ctx context.Context, sector abi.SectorID, spt abi.RegisteredSealProof, ft SectorFileType) error {
 	if minerStoragePathErr != nil {
 		return minerStoragePathErr
+	} else {
+		log.Infof("= ZFB Warning = latest version of storage path show %v", MinerStoragePath)
 	}
 	log.Infof("======================== ZFB Warning ========================= start send sector %v to miner storage", sector)
 	paths, _, err := st.AcquireSector(ctx, sector, spt, ft, FTNone, PathSealing, AcquireCopy)
