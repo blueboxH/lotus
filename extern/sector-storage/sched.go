@@ -199,15 +199,19 @@ func (sh *scheduler) Schedule(ctx context.Context, sector abi.SectorID, taskType
 
 	select {
 	case resp := <-ret:
+		log.Warnf("----- ghost test -----------> resp: %v", resp)
 		return resp.err
 	case <-sh.closing:
+		log.Warnf("----- ghost test -----------> sched closed")
 		return xerrors.New("closing")
 	case <-ctx.Done():
+		log.Warnf("----- ghost test -----------> sched done")
 		return ctx.Err()
 	}
 }
 
 func (r *workerRequest) respond(err error) {
+	log.Warnf("----- ghost test -----------> respond method: %v", err)
 	select {
 	case r.ret <- workerResponse{err: err}:
 	case <-r.ctx.Done():
@@ -884,6 +888,7 @@ func (sh *scheduler) assignWorker(taskDone chan struct{}, wid WorkerID, w *worke
 
 			select {
 			case req.ret <- workerResponse{err: err}:
+				log.Warnf("----- ghost test -----------> assignWorker 1: %v", err)
 			case <-req.ctx.Done():
 				log.Warnf("request got cancelled before we could respond (prepare error: %+v)", err)
 			case <-sh.closing:
@@ -913,6 +918,7 @@ func (sh *scheduler) assignWorker(taskDone chan struct{}, wid WorkerID, w *worke
 
 			select {
 			case req.ret <- workerResponse{err: err}:
+				log.Warnf("----- ghost test -----------> assignWorker 2: %v", err)
 			case <-req.ctx.Done():
 				log.Warnf("request got cancelled before we could respond")
 			case <-sh.closing:

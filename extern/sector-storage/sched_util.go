@@ -492,19 +492,19 @@ func (sh schedulerHt) afterScheduled(sector abi.SectorID, taskType sealtasks.Tas
 	// add current to state
 	if (sealtasks.TTAddPieceHT == taskType || sealtasks.TTPreCommit1 == taskType || sealtasks.TTPreCommit2 == taskType) && sh.getWorkerMaxSectorNum(hostname) > 0 {
 
-		sh.setWorkerSectorState(hostname, sector.Number, taskType, "scheduled")
-		log.Debugf("afterScheduled do: worker %s add sector %s %s to HandingSector", hostname, sector, taskType.Short())
-		if sh.getWorkerSectorLen(hostname) >= sh.getWorkerMaxSectorNum(hostname) {
-			log.Debugf("host %s worker active from %t to false", hostname, sh.canDoNewSector(hostname))
-			sh.setCanDoNewSector(hostname, false)
-		}
-
 		if sealtasks.TTPreCommit1 == taskType { // todo: 错误情况, 有没有更合理的处理方式
 			lastTaskType := sh.getWorkerSectorState(hostname, sector.Number)
 			if (sealtasks.TTPreCommit1.Short() == lastTaskType || sealtasks.TTPreCommit2.Short() == lastTaskType) && sh.getWorkerSectorLen(hostname) < sh.getWorkerMaxSectorNum(hostname) {
 				log.Debugf("host %s worker active from %t to true, because of it last taskType is %s and handing sector %v", hostname, sh.canDoNewSector(hostname), lastTaskType, sh.getWorkerSectorStates(hostname))
 				sh.setCanDoNewSector(hostname, true)
 			}
+		}
+
+		sh.setWorkerSectorState(hostname, sector.Number, taskType, "scheduled")
+		log.Debugf("afterScheduled do: worker %s add sector %s %s to HandingSector", hostname, sector, taskType.Short())
+		if sh.getWorkerSectorLen(hostname) >= sh.getWorkerMaxSectorNum(hostname) {
+			log.Debugf("host %s worker active from %t to false", hostname, sh.canDoNewSector(hostname))
+			sh.setCanDoNewSector(hostname, false)
 		}
 
 	}

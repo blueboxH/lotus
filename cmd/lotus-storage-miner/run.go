@@ -62,9 +62,9 @@ var runCmd = &cli.Command{
 				return err
 			}
 		}
-		if cctx.Bool("custom-rpc-log") {
-			jsonrpc.CommandLogFlag = true
-		}
+		//if cctx.Bool("custom-rpc-log") {
+		//	jsonrpc.CommandLogFlag = true
+		//}
 		nodeApi, ncloser, err := lcli.GetFullNodeAPI(cctx)
 		if err != nil {
 			return err

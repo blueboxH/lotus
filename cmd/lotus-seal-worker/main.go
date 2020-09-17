@@ -165,9 +165,9 @@ var runCmd = &cli.Command{
 				return xerrors.Errorf("could not set no-gpu env: %+v", err)
 			}
 		}
-		if cctx.Bool("custom-rpc-log") {
-			jsonrpc.CommandLogFlag = true
-		}
+		//if cctx.Bool("custom-rpc-log") {
+		//	jsonrpc.CommandLogFlag = true
+		//}
 		//sectorstorage.InitRedis() // 初始化redis, 暂时不需要
 		// Connect to storage-miner
 		var nodeApi api.StorageMiner
