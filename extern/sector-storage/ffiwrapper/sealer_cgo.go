@@ -45,7 +45,16 @@ func New(sectors SectorProvider, cfg *Config) (*Sealer, error) {
 
 	return sb, nil
 }
-
+func Exists(path string) bool {
+	_, err := os.Stat(path) //os.Stat获取文件信息
+	if err != nil {
+		if os.IsExist(err) {
+			return true
+		}
+		return false
+	}
+	return true
+}
 func (sb *Sealer) NewSector(ctx context.Context, sector abi.SectorID) error {
 	// TODO: Allocate the sector here instead of in addpiece
 
@@ -545,38 +554,43 @@ func (sb *Sealer) FinalizeSector(ctx context.Context, sector abi.SectorID, keepU
 		}
 		defer done()
 
-		pf, err := openPartialFile(maxPieceSize, paths.Unsealed)
-		if xerrors.Is(err, os.ErrNotExist) {
-			return xerrors.Errorf("opening partial file: %w", err)
-		}
+		if Exists(paths.Unsealed) {
+			pf, err := openPartialFile(maxPieceSize, paths.Unsealed)
+			if xerrors.Is(err, os.ErrNotExist) {
+				return xerrors.Errorf("opening partial file: %w", err)
+			}
 
-		var at uint64
-		for sr.HasNext() {
-			r, err := sr.NextRun()
-			if err != nil {
-				_ = pf.Close()
+			var at uint64
+			for sr.HasNext() {
+				r, err := sr.NextRun()
+				if err != nil {
+					_ = pf.Close()
+					return err
+				}
+
+				offset := at
+				at += r.Len
+				if !r.Val {
+					continue
+				}
+
+				err = pf.Free(storiface.PaddedByteIndex(abi.UnpaddedPieceSize(offset).Padded()), abi.UnpaddedPieceSize(r.Len).Padded())
+				if err != nil {
+					_ = pf.Close()
+					return xerrors.Errorf("free partial file range: %w", err)
+				}
+			}
+
+			if err := pf.Close(); err != nil {
 				return err
 			}
-
-			offset := at
-			at += r.Len
-			if !r.Val {
-				continue
-			}
-
-			err = pf.Free(storiface.PaddedByteIndex(abi.UnpaddedPieceSize(offset).Padded()), abi.UnpaddedPieceSize(r.Len).Padded())
-			if err != nil {
-				_ = pf.Close()
-				return xerrors.Errorf("free partial file range: %w", err)
-			}
-		}
-
-		if err := pf.Close(); err != nil {
-			return err
 		}
 	}
 
 	paths, done, err := sb.sectors.AcquireSector(ctx, sector, stores.FTCache, 0, stores.PathStorage)
+	if !Exists(paths.Cache) {
+		return nil
+	}
 	if err != nil {
 		return xerrors.Errorf("acquiring sector cache path: %w", err)
 	}

@@ -20,15 +20,59 @@ import (
 )
 
 // ============================= mod ===========================
-var CephStoragePath = getCephStoragePath()
+var MinerStoragePath, minerStoragePathErr = getMinerStoragePath()
 
-func getCephStoragePath() string {
-	cephStoragePath := os.Getenv("CEPH_STORAGE_PATH")
-	if cephStoragePath == "" {
-		log.Debugf("env CEPH_STORAGE_PATH not found, use default '/cephfs/lotusminer_public/' ")
-		return "/cephfs/lotusminer_public/"
+type MinerStoragePathError struct {
+	errorMsg string
+}
+
+func NewMinerStoragePathError(message string) *MinerStoragePathError {
+	return &MinerStoragePathError{
+		errorMsg: message,
 	}
-	return cephStoragePath
+}
+func (err MinerStoragePathError) Error() string {
+	return err.errorMsg
+}
+
+func getMinerStoragePath() (filePaths map[SectorFileType]string, err error) {
+	defaultMinerStoragePath := "/cephfs/lotusminer_public/"
+	minerStoragePath := defaultMinerStoragePath
+	if os.Getenv("MINER_STORAGE_PATH") != "" {
+		if !filepath.IsAbs(os.Getenv("MINER_STORAGE_PATH")) {
+			err = NewMinerStoragePathError("miner storage path must be absolute path")
+			log.Infof("= ZFB Warning = error while parse storage paths,%s", err)
+			return nil, err
+		}
+		minerStoragePath = os.Getenv("MINER_STORAGE_PATH")
+	}
+	if !Exists(minerStoragePath) {
+		err = NewMinerStoragePathError("Path " + minerStoragePath + " not Exist")
+		log.Infof("= ZFB Warning = error while parse storage paths,%s", err)
+		return nil, err
+	}
+	filePaths = make(map[SectorFileType]string)
+	for _, fileType := range PathTypes {
+		envOfPathType := os.Getenv("MINER_STORAGE_PATH_" + strings.ToUpper(fileType.String()))
+		if envOfPathType != "" {
+			if !filepath.IsAbs(envOfPathType) {
+				err = NewMinerStoragePathError("miner storage path must be absolute path")
+				log.Infof("= ZFB Warning = error while parse storage paths,%s", err)
+				return nil, err
+			}
+			filePaths[fileType] = envOfPathType
+		} else {
+			filePaths[fileType] = filepath.Join(minerStoragePath, fileType.String())
+		}
+
+		if !Exists(filePaths[fileType]) {
+			err = NewMinerStoragePathError("Path " + filePaths[fileType] + " not Exist")
+			log.Infof("= ZFB Warning = error while parse storage paths,%s", err)
+			return nil, err
+		}
+	}
+	log.Infof("= ZFB Warning = latest version of storage path show %v", filePaths)
+	return filePaths, nil
 }
 
 // ============================= mod ===========================
@@ -280,6 +324,11 @@ func (st *Local) reportHealth(ctx context.Context) {
 
 // ============================= mod ===========================
 func (st *Local) SendSectorToMiner(ctx context.Context, sector abi.SectorID, spt abi.RegisteredSealProof, ft SectorFileType) error {
+	if minerStoragePathErr != nil {
+		return minerStoragePathErr
+	} else {
+		log.Infof("= ZFB Warning = latest version of storage path show %v", MinerStoragePath)
+	}
 	log.Infof("======================== ZFB Warning ========================= start send sector %v to miner storage", sector)
 	paths, _, err := st.AcquireSector(ctx, sector, spt, ft, FTNone, PathSealing, AcquireCopy)
 	if err != nil {
@@ -291,10 +340,9 @@ func (st *Local) SendSectorToMiner(ctx context.Context, sector abi.SectorID, spt
 			continue
 		}
 		if strings.Contains(PathByType(paths, fileType), "lotusminer") {
-
 			continue
 		}
-		if err := move(PathByType(paths, fileType), filepath.Join(CephStoragePath, fileType.String(), filepath.Base(PathByType(paths, fileType)))); err != nil {
+		if err := move(PathByType(paths, fileType), filepath.Join(MinerStoragePath[fileType], filepath.Base(PathByType(paths, fileType)))); err != nil {
 			log.Infof("======================== ZFB Warning ========================= send sector %v to miner storage error,fileType: %s,%s", sector, fileType, err)
 			return err
 		}
