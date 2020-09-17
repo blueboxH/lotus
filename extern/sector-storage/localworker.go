@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/elastic/go-sysinfo"
 	"github.com/hashicorp/go-multierror"
@@ -138,7 +139,7 @@ func (l *LocalWorker) SealPreCommit1(ctx context.Context, sector abi.SectorID, t
 	if err != nil {
 		return nil, err
 	}
-
+	time.Sleep(time.Minute * 2) // todo delete
 	return sb.SealPreCommit1(ctx, sector, ticket, pieces)
 }
 
@@ -147,7 +148,7 @@ func (l *LocalWorker) SealPreCommit2(ctx context.Context, sector abi.SectorID, p
 	if err != nil {
 		return storage2.SectorCids{}, err
 	}
-
+	time.Sleep(time.Minute * 2) // todo delete
 	return sb.SealPreCommit2(ctx, sector, phase1Out)
 }
 
@@ -165,7 +166,7 @@ func (l *LocalWorker) SealCommit2(ctx context.Context, sector abi.SectorID, phas
 	if err != nil {
 		return nil, err
 	}
-
+	time.Sleep(time.Minute * 2) // todo delete
 	return sb.SealCommit2(ctx, sector, phase1Out)
 }
 
@@ -174,7 +175,7 @@ func (l *LocalWorker) FinalizeSector(ctx context.Context, sector abi.SectorID, k
 	if err != nil {
 		return err
 	}
-
+	time.Sleep(time.Minute * 2) // todo delete
 	if err := sb.FinalizeSector(ctx, sector, keepUnsealed); err != nil {
 		return xerrors.Errorf("finalizing sector: %w", err)
 	}

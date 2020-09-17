@@ -612,7 +612,9 @@ func (sh *scheduler) tryHtSched() {
 		}
 		hostname := worker.info.Hostname
 		requestQueueMap := sh.htSchedMap[hostname]
-		schedWindow := schedWindow{}
+		schedWindow := schedWindow{
+			//allocated: *worker.active,
+		}
 
 		for _, schedTask := range htSchedTasks {
 			needRes := ResourceTable[schedTask][sh.spt]
@@ -647,7 +649,7 @@ func (sh *scheduler) tryHtSched() {
 				schedWindow.todo = append(schedWindow.todo, task)
 
 				schedWindow.allocated.add(worker.info.Resources, needRes)
-				log.Infof("worker %s after sched Resources %v", hostname, worker.info.Resources)
+				log.Infof("worker %s after sched Resources %v, worker Resources %v", hostname, schedWindow.allocated, worker.active)
 				delete(requestQueueMap[schedTask], sector)
 				log.Infof("tryHtSched SCHED ASSIGNED sector %d taskType %s to host %s", sector, task.taskType.Short(), hostname)
 				SchedulerHt.afterScheduled(task.sector, task.taskType, hostname)
@@ -752,9 +754,7 @@ func (sh *scheduler) runWorker(wid WorkerID) {
 			sh.workersLk.RLock()
 			worker.wndLk.Lock()
 
-			log.Infof(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> befor workerCompactWindows activeWindow %v", worker.activeWindows)
 			windowsRequested -= sh.workerCompactWindows(worker, wid)
-			log.Infof(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> after workerCompactWindows activeWindow %v", worker.activeWindows)
 		assignLoop:
 			// process windows in order
 			for len(worker.activeWindows) > 0 {
