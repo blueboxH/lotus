@@ -47,7 +47,7 @@ func getMinerStoragePath() (filePaths map[SectorFileType]string, err error) {
 		minerStoragePath = os.Getenv("MINER_STORAGE_PATH")
 	}
 	if !Exists(minerStoragePath) {
-		err = NewMinerStoragePathError("Path " + filepath.Join(minerStoragePath) + "not Exist")
+		err = NewMinerStoragePathError("Path " + minerStoragePath + " not Exist")
 		log.Infof("= ZFB Warning = error while parse storage paths,%s", err)
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func getMinerStoragePath() (filePaths map[SectorFileType]string, err error) {
 		}
 
 		if !Exists(filePaths[fileType]) {
-			err = NewMinerStoragePathError("Path " + filepath.Join(minerStoragePath, fileType.String()) + "not Exist")
+			err = NewMinerStoragePathError("Path " + filePaths[fileType] + " not Exist")
 			log.Infof("= ZFB Warning = error while parse storage paths,%s", err)
 			return nil, err
 		}
