@@ -61,6 +61,7 @@ func getMinerStoragePath() (filePaths map[SectorFileType]string, err error) {
 			return nil, err
 		}
 	}
+	log.Infof("= ZFB Warning = latest version of storage path show %v", filePaths)
 	return filePaths, nil
 }
 
