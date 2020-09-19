@@ -1012,19 +1012,23 @@ func (sh *scheduler) workerCleanup(wid WorkerID, w *workerHandle) {
 		SchedulerHt.delCSet(w.info.Hostname)
 		log.Infof("dropWorker %s and delete from pPet and cSet", w.info.Hostname)
 
+		var tmpRequest []*workerRequest
 		for _, activeWindow := range w.activeWindows {
 			if len(activeWindow.todo) <= 0 {
 				continue
 			}
 			for _, request := range activeWindow.todo {
-				go func() {
-					select {
-					case sh.schedule <- request:
-						log.Infof("reSched worker %s active windows todo %s %s", w.info.Hostname, request.sector, request.taskType)
-					}
-				}()
+				tmpRequest = append(tmpRequest, request)
 			}
 		}
+		go func() {
+			for _, request := range tmpRequest {
+				select {
+				case sh.schedule <- request:
+					log.Infof("reSched worker %s active windows todo %s %s", w.info.Hostname, request.sector, request.taskType)
+				}
+			}
+		}()
 		// ==========================================      mod     ===================================
 
 		go func() {
