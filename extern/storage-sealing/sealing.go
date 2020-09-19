@@ -28,6 +28,8 @@ import (
 
 const SectorStorePrefix = "/sectors"
 
+var ErrTooManySectorsSealing = xerrors.New("too many sectors sealing")
+
 var log = logging.Logger("sectors")
 
 type SectorLocation struct {
@@ -59,6 +61,8 @@ type SealingAPI interface {
 	ChainReadObj(context.Context, cid.Cid) ([]byte, error)
 }
 
+type SectorStateNotifee func(before, after SectorInfo)
+
 type Sealing struct {
 	api    SealingAPI
 	feeCfg FeeConfig
@@ -76,6 +80,8 @@ type Sealing struct {
 
 	upgradeLk sync.Mutex
 	toUpgrade map[abi.SectorNumber]struct{}
+
+	notifee SectorStateNotifee
 
 	stats SectorStats
 
@@ -99,7 +105,7 @@ type UnsealedSectorInfo struct {
 	pieceSizes []abi.UnpaddedPieceSize
 }
 
-func New(api SealingAPI, fc FeeConfig, events Events, maddr address.Address, ds datastore.Batching, sealer sectorstorage.SectorManager, sc SectorIDCounter, verif ffiwrapper.Verifier, pcp PreCommitPolicy, gc GetSealingConfigFunc) *Sealing {
+func New(api SealingAPI, fc FeeConfig, events Events, maddr address.Address, ds datastore.Batching, sealer sectorstorage.SectorManager, sc SectorIDCounter, verif ffiwrapper.Verifier, pcp PreCommitPolicy, gc GetSealingConfigFunc, notifee SectorStateNotifee) *Sealing {
 	s := &Sealing{
 		api:    api,
 		feeCfg: fc,
@@ -116,6 +122,9 @@ func New(api SealingAPI, fc FeeConfig, events Events, maddr address.Address, ds 
 		},
 
 		toUpgrade: map[abi.SectorNumber]struct{}{},
+
+		notifee: notifee,
+
 		getConfig: gc,
 
 		stats: SectorStats{
@@ -280,7 +289,7 @@ func (m *Sealing) newDealSector() (abi.SectorNumber, error) {
 
 	if cfg.MaxSealingSectorsForDeals > 0 {
 		if m.stats.curSealing() > cfg.MaxSealingSectorsForDeals {
-			return 0, xerrors.Errorf("too many sectors sealing")
+			return 0, ErrTooManySectorsSealing
 		}
 	}
 
