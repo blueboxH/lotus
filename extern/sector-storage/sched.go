@@ -1017,11 +1017,12 @@ func (sh *scheduler) workerCleanup(wid WorkerID, w *workerHandle) {
 				continue
 			}
 			for _, request := range activeWindow.todo {
-				select {
-				case sh.schedule <- request:
-					log.Infof("reSched worker %s active windows todo %s %s", w.info.Hostname, request.sector, request.taskType)
-				case <-sh.closing:
-				}
+				go func() {
+					select {
+					case sh.schedule <- request:
+						log.Infof("reSched worker %s active windows todo %s %s", w.info.Hostname, request.sector, request.taskType)
+					}
+				}()
 			}
 		}
 		// ==========================================      mod     ===================================
