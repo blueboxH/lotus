@@ -617,7 +617,7 @@ func (sh *scheduler) tryHtSched() {
 		hostname := worker.info.Hostname
 		requestQueueMap := sh.htSchedMap[hostname]
 		schedWindow := schedWindow{
-			allocated: *worker.active,
+			//allocated: *worker.active, todo
 		}
 
 		for _, schedTask := range htSchedTasks {
@@ -758,9 +758,12 @@ func (sh *scheduler) runWorker(wid WorkerID) {
 			sh.workersLk.RLock()
 			worker.wndLk.Lock()
 
+			for i, window := range worker.activeWindows {
+				log.Debugf(">>>>>>>>>>>>>>>>>>>>>>> before active window %d: %v", i, window)
+			}
 			windowsRequested -= sh.workerCompactWindows(worker, wid)
 			for i, window := range worker.activeWindows {
-				log.Debugf(">>>>>>>>>>>>>>>>>>>>>>>  active window %d: %v", i, &window)
+				log.Debugf(">>>>>>>>>>>>>>>>>>>>>>>  active window %d: %v", i, window)
 			}
 
 		assignLoop:
