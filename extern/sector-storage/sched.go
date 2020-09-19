@@ -617,7 +617,7 @@ func (sh *scheduler) tryHtSched() {
 		hostname := worker.info.Hostname
 		requestQueueMap := sh.htSchedMap[hostname]
 		schedWindow := schedWindow{
-			//allocated: *worker.active,
+			allocated: *worker.active,
 		}
 
 		for _, schedTask := range htSchedTasks {
@@ -759,6 +759,10 @@ func (sh *scheduler) runWorker(wid WorkerID) {
 			worker.wndLk.Lock()
 
 			windowsRequested -= sh.workerCompactWindows(worker, wid)
+			for i, window := range worker.activeWindows {
+				log.Debugf(">>>>>>>>>>>>>>>>>>>>>>>  active window %d: %v", i, &window)
+			}
+
 		assignLoop:
 			// process windows in order
 			for len(worker.activeWindows) > 0 {
@@ -841,6 +845,9 @@ func (sh *scheduler) workerCompactWindows(worker *workerHandle, wid WorkerID) in
 
 					newTodo = append(newTodo, t)
 				}
+				sort.Slice(newTodo, func(i, j int) bool { // 按任务类型排序
+					return newTodo[i].taskType.Less(newTodo[j].taskType)
+				})
 				window.todo = newTodo
 			}
 		}
@@ -1001,6 +1008,19 @@ func (sh *scheduler) workerCleanup(wid WorkerID, w *workerHandle) {
 		SchedulerHt.delPSet(w.info.Hostname)
 		SchedulerHt.delCSet(w.info.Hostname)
 		log.Infof("dropWorker %s and delete from pPet and cSet", w.info.Hostname)
+
+		for _, activeWindow := range w.activeWindows {
+			if len(activeWindow.todo) <= 0 {
+				continue
+			}
+			for _, request := range activeWindow.todo {
+				select {
+				case sh.schedule <- request:
+					log.Infof("reSched worker %s active windows todo %s %s", w.info.Hostname, request.sector, request.taskType)
+				case <-sh.closing:
+				}
+			}
+		}
 		// ==========================================      mod     ===================================
 
 		go func() {
