@@ -758,12 +758,22 @@ func (sh *scheduler) runWorker(wid WorkerID) {
 			sh.workersLk.RLock()
 			worker.wndLk.Lock()
 
+			// ====================== todo delete ============================
+			var com = func(window *schedWindow) (res map[abi.SectorID]string) {
+
+				for _, task := range window.todo {
+					res[task.sector] = task.taskType.Short()
+				}
+
+				return res
+			}
+
 			for i, window := range worker.activeWindows {
-				log.Debugf(">>>>>>>>>>>>>>>>>>>>>>> before active window %d: %v", i, window)
+				log.Debugf(">>>>>>>>>>>>>>>>>>>>>>> before active window %d: %v", i, com(window))
 			}
 			windowsRequested -= sh.workerCompactWindows(worker, wid)
 			for i, window := range worker.activeWindows {
-				log.Debugf(">>>>>>>>>>>>>>>>>>>>>>>  active window %d: %v", i, window)
+				log.Debugf(">>>>>>>>>>>>>>>>>>>>>>>  active window %d: %v", i, com(window))
 			}
 
 		assignLoop:
