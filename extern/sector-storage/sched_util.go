@@ -207,8 +207,8 @@ func (sh schedulerHt) getWorkerSectorState(hostname string, number abi.SectorNum
 }
 
 func (sh schedulerHt) setWorkerSectorState(hostname string, number abi.SectorNumber, taskType sealtasks.TaskType, status string) {
-	_, err := redo("hset", getRedisPrefix()+workerSectorStatesRedisPrefix+hostname, number, taskType.Short())
-	//_, err := redo("hset", getRedisPrefix()+workerSectorStatesRedisPrefix+hostname, number, taskType.Short()+"-"+status) // todo
+	//_, err := redo("hset", getRedisPrefix()+workerSectorStatesRedisPrefix+hostname, number, taskType.Short())
+	_, err := redo("hset", getRedisPrefix()+workerSectorStatesRedisPrefix+hostname, number, taskType.Short()+"-"+status) // todo
 	if err != nil {
 		log.Debug(err)
 	}
@@ -439,6 +439,7 @@ func (sh schedulerHt) filterMaxNum(hostname string, sector abi.SectorID, taskTyp
 
 func (sh schedulerHt) afterTaskFinish(sector abi.SectorID, taskType sealtasks.TaskType, hostname string) {
 	log.Infof("sector %s %s task done at host %s", sector, taskType.Short(), hostname)
+	SchedulerHt.setWorkerSectorState(hostname, sector.Number, taskType, "finish")
 
 	// sector cache
 	if sealtasks.TTAddPieceHT == taskType { // apht 阶段完成加入 map
@@ -523,8 +524,6 @@ func (sh schedulerHt) afterScheduled(sector abi.SectorID, taskType sealtasks.Tas
 
 // worker 在开始做p1 p2 等耗时任务时候, 将任务类型值写入redis, 表示开始, 结束时删除此值, 另外, 将运行结果值写入redis
 func isFinished(sector abi.SectorID, taskType sealtasks.TaskType) (cacheRes []byte, finish func(res []byte)) {
-	hostname, _ := os.Hostname()
-	SchedulerHt.setWorkerSectorState(hostname, sector.Number, taskType, "running")
 	cacheRes = SchedulerHt.GetWorkerDoingSector(taskType, sector.Number)
 
 	if len(cacheRes) > 0 {
@@ -539,7 +538,7 @@ func isFinished(sector abi.SectorID, taskType sealtasks.TaskType) (cacheRes []by
 			log.Infof("sector %s %s finish, result cache to redis: %s", sector, taskType, res)
 		}
 		delete(DoingSectors, sector.Number)
-		SchedulerHt.setWorkerSectorState(hostname, sector.Number, taskType, "finish")
+
 	}
 }
 

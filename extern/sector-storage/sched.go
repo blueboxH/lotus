@@ -929,6 +929,7 @@ func (sh *scheduler) assignWorker(taskDone chan struct{}, wid WorkerID, w *worke
 			case <-sh.closing:
 			}
 
+			SchedulerHt.setWorkerSectorState(w.info.Hostname, req.sector.Number, req.taskType, "running")
 			err = req.work(req.ctx, w.wt.worker(w.w))
 			// ==========================================      mod     ===================================
 			if err == nil {
