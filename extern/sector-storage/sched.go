@@ -759,8 +759,9 @@ func (sh *scheduler) runWorker(wid WorkerID) {
 			worker.wndLk.Lock()
 
 			// ====================== todo delete ============================
-			var com = func(window *schedWindow) (res map[abi.SectorID]string) {
+			var com = func(window *schedWindow) map[abi.SectorID]string {
 
+				res := make(map[abi.SectorID]string)
 				for _, task := range window.todo {
 					res[task.sector] = task.taskType.Short()
 				}
