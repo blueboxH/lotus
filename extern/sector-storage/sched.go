@@ -617,7 +617,7 @@ func (sh *scheduler) tryHtSched() {
 		hostname := worker.info.Hostname
 		requestQueueMap := sh.htSchedMap[hostname]
 		schedWindow := schedWindow{
-			//allocated: *worker.active, todo
+			allocated: *worker.active,
 		}
 
 		for _, schedTask := range htSchedTasks {
