@@ -175,7 +175,7 @@ func (l *LocalWorker) FinalizeSector(ctx context.Context, sector abi.SectorID, k
 	if err != nil {
 		return err
 	}
-	time.Sleep(time.Minute * 2) // todo delete
+
 	if err := sb.FinalizeSector(ctx, sector, keepUnsealed); err != nil {
 		return xerrors.Errorf("finalizing sector: %w", err)
 	}
