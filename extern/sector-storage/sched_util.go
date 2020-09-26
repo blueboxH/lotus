@@ -207,8 +207,8 @@ func (sh schedulerHt) getWorkerSectorState(hostname string, number abi.SectorNum
 }
 
 func (sh schedulerHt) setWorkerSectorState(hostname string, number abi.SectorNumber, taskType sealtasks.TaskType, status string) {
-	_, err := redo("hset", getRedisPrefix()+workerSectorStatesRedisPrefix+hostname, number, taskType.Short())
-	//_, err := redo("hset", getRedisPrefix()+workerSectorStatesRedisPrefix+hostname, number, taskType.Short()+"-"+status) // todo
+	//_, err := redo("hset", getRedisPrefix()+workerSectorStatesRedisPrefix+hostname, number, taskType.Short())
+	_, err := redo("hset", getRedisPrefix()+workerSectorStatesRedisPrefix+hostname, number, taskType.Short()+"-"+status) // todo
 	if err != nil {
 		log.Debug(err)
 	}
@@ -439,6 +439,9 @@ func (sh schedulerHt) filterMaxNum(hostname string, sector abi.SectorID, taskTyp
 
 func (sh schedulerHt) afterTaskFinish(sector abi.SectorID, taskType sealtasks.TaskType, hostname string) {
 	log.Infof("sector %s %s task done at host %s", sector, taskType.Short(), hostname)
+	if (sealtasks.TTAddPieceHT == taskType || sealtasks.TTPreCommit1 == taskType || sealtasks.TTPreCommit2 == taskType) && sh.getWorkerMaxSectorNum(hostname) > 0 {
+		SchedulerHt.setWorkerSectorState(hostname, sector.Number, taskType, "finish")
+	}
 
 	// sector cache
 	if sealtasks.TTAddPieceHT == taskType { // apht 阶段完成加入 map

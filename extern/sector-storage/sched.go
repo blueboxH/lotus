@@ -617,7 +617,9 @@ func (sh *scheduler) tryHtSched() {
 		}
 		hostname := worker.info.Hostname
 		requestQueueMap := sh.htSchedMap[hostname]
-		schedWindow := schedWindow{}
+		schedWindow := schedWindow{
+			allocated: *worker.active,
+		}
 
 		for _, schedTask := range htSchedTasks {
 			needRes := ResourceTable[schedTask][sh.spt]
@@ -652,7 +654,7 @@ func (sh *scheduler) tryHtSched() {
 				schedWindow.todo = append(schedWindow.todo, task)
 
 				schedWindow.allocated.add(worker.info.Resources, needRes)
-				log.Infof("worker %s after sched Resources %v", hostname, schedWindow.allocated)
+				log.Infof("worker %s after sched Resources %v, worker Resources %v", hostname, schedWindow.allocated, worker.active)
 				delete(requestQueueMap[schedTask], sector)
 				log.Infof("tryHtSched SCHED ASSIGNED sector %d taskType %s to host %s", sector, task.taskType.Short(), hostname)
 				SchedulerHt.afterScheduled(task.sector, task.taskType, hostname)
@@ -840,6 +842,11 @@ func (sh *scheduler) workerCompactWindows(worker *workerHandle, wid WorkerID) in
 
 					newTodo = append(newTodo, t)
 				}
+				// ==========================================      mod     ===================================
+				sort.Slice(newTodo, func(i, j int) bool { // 按任务类型排序
+					return newTodo[i].taskType.Less(newTodo[j].taskType)
+				})
+				// ==========================================      mod     ===================================
 				window.todo = newTodo
 			}
 		}
@@ -907,6 +914,9 @@ func (sh *scheduler) assignWorker(taskDone chan struct{}, wid WorkerID, w *worke
 			case <-sh.closing:
 			}
 
+			if (sealtasks.TTAddPieceHT == req.taskType || sealtasks.TTPreCommit1 == req.taskType || sealtasks.TTPreCommit2 == req.taskType) && SchedulerHt.getWorkerMaxSectorNum(w.info.Hostname) > 0 {
+				SchedulerHt.setWorkerSectorState(w.info.Hostname, req.sector.Number, req.taskType, "running")
+			}
 			err = req.work(req.ctx, w.wt.worker(w.w))
 			// ==========================================      mod     ===================================
 			if err == nil {
@@ -998,6 +1008,24 @@ func (sh *scheduler) workerCleanup(wid WorkerID, w *workerHandle) {
 		SchedulerHt.delPSet(w.info.Hostname)
 		SchedulerHt.delCSet(w.info.Hostname)
 		log.Infof("dropWorker %s and delete from pPet and cSet", w.info.Hostname)
+
+		var tmpRequest []*workerRequest
+		for _, activeWindow := range w.activeWindows {
+			if len(activeWindow.todo) <= 0 {
+				continue
+			}
+			for _, request := range activeWindow.todo {
+				tmpRequest = append(tmpRequest, request)
+			}
+		}
+		go func() {
+			for _, request := range tmpRequest {
+				select {
+				case sh.schedule <- request:
+					log.Infof("reSched worker %s active windows todo %s %s", w.info.Hostname, request.sector, request.taskType)
+				}
+			}
+		}()
 		// ==========================================      mod     ===================================
 
 		go func() {
