@@ -36,7 +36,7 @@ func (err MinerStoragePathError) Error() string {
 }
 
 func getMinerStoragePath() (filePaths map[SectorFileType]string, err error) {
-	defaultMinerStoragePath := "/cephfs/lotusminer_public/"
+	defaultMinerStoragePath := "/lustre/lotusminer_public/"
 	minerStoragePath := defaultMinerStoragePath
 	if os.Getenv("MINER_STORAGE_PATH") != "" {
 		if !filepath.IsAbs(os.Getenv("MINER_STORAGE_PATH")) {
