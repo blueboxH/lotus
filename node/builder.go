@@ -20,8 +20,9 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/xerrors"
 
+	"github.com/filecoin-project/go-fil-markets/discovery"
+	discoveryimpl "github.com/filecoin-project/go-fil-markets/discovery/impl"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
-	"github.com/filecoin-project/go-fil-markets/retrievalmarket/discovery"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
 	"github.com/filecoin-project/go-fil-markets/storagemarket/impl/storedask"
 
@@ -35,6 +36,7 @@ import (
 	"github.com/filecoin-project/lotus/chain/gen/slashfilter"
 	"github.com/filecoin-project/lotus/chain/market"
 	"github.com/filecoin-project/lotus/chain/messagepool"
+	"github.com/filecoin-project/lotus/chain/messagesigner"
 	"github.com/filecoin-project/lotus/chain/metrics"
 	"github.com/filecoin-project/lotus/chain/stmgr"
 	"github.com/filecoin-project/lotus/chain/store"
@@ -257,8 +259,10 @@ func Online() Option {
 			Override(new(ffiwrapper.Verifier), ffiwrapper.ProofVerifier),
 			Override(new(vm.SyscallBuilder), vm.Syscalls),
 			Override(new(*store.ChainStore), modules.ChainStore),
-			Override(new(*stmgr.StateManager), stmgr.NewStateManager),
+			Override(new(stmgr.UpgradeSchedule), stmgr.DefaultUpgradeSchedule()),
+			Override(new(*stmgr.StateManager), stmgr.NewStateManagerWithUpgradeSchedule),
 			Override(new(*wallet.Wallet), wallet.NewWallet),
+			Override(new(*messagesigner.MessageSigner), messagesigner.NewMessageSigner),
 
 			Override(new(dtypes.ChainGCLocker), blockstore.NewGCLocker),
 			Override(new(dtypes.ChainGCBlockstore), modules.ChainGCBlockstore),
@@ -290,8 +294,8 @@ func Online() Option {
 			Override(RunPeerMgrKey, modules.RunPeerMgr),
 			Override(HandleIncomingBlocksKey, modules.HandleIncomingBlocks),
 
-			Override(new(*discovery.Local), modules.NewLocalDiscovery),
-			Override(new(retrievalmarket.PeerResolver), modules.RetrievalResolver),
+			Override(new(*discoveryimpl.Local), modules.NewLocalDiscovery),
+			Override(new(discovery.PeerResolver), modules.RetrievalResolver),
 
 			Override(new(retrievalmarket.RetrievalClient), modules.RetrievalClient),
 			Override(new(dtypes.ClientDatastore), modules.NewClientDatastore),
@@ -341,7 +345,7 @@ func Online() Option {
 			Override(new(dtypes.DealFilter), modules.BasicDealFilter(nil)),
 			Override(new(modules.ProviderDealFunds), modules.NewProviderDealFunds),
 			Override(new(storagemarket.StorageProvider), modules.StorageProvider),
-			Override(new(storagemarket.StorageProviderNode), storageadapter.NewProviderNodeAdapter),
+			Override(new(storagemarket.StorageProviderNode), storageadapter.NewProviderNodeAdapter(nil)),
 			Override(HandleRetrievalKey, modules.HandleRetrieval),
 			Override(GetParamsKey, modules.GetParams),
 			Override(HandleDealsKey, modules.HandleDeals),
@@ -459,6 +463,8 @@ func ConfigStorageMiner(c interface{}) Option {
 		If(cfg.Dealmaking.Filter != "",
 			Override(new(dtypes.DealFilter), modules.BasicDealFilter(dealfilter.CliDealFilter(cfg.Dealmaking.Filter))),
 		),
+
+		Override(new(storagemarket.StorageProviderNode), storageadapter.NewProviderNodeAdapter(&cfg.Fees)),
 
 		Override(new(sectorstorage.SealerConfig), cfg.Storage),
 		Override(new(*storage.Miner), modules.StorageMiner(cfg.Fees)),

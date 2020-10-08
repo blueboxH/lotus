@@ -15,9 +15,9 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
-	"github.com/filecoin-project/specs-actors/actors/builtin"
-	init_ "github.com/filecoin-project/specs-actors/actors/builtin/init"
-	tutils "github.com/filecoin-project/specs-actors/support/testing"
+	"github.com/filecoin-project/specs-actors/v2/actors/builtin"
+	init2 "github.com/filecoin-project/specs-actors/v2/actors/builtin/init"
+	tutils "github.com/filecoin-project/specs-actors/v2/support/testing"
 
 	lotusinit "github.com/filecoin-project/lotus/chain/actors/builtin/init"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/paych"
@@ -26,7 +26,7 @@ import (
 )
 
 func testChannelResponse(t *testing.T, ch address.Address) types.MessageReceipt {
-	createChannelRet := init_.ExecReturn{
+	createChannelRet := init2.ExecReturn{
 		IDAddress:     ch,
 		RobustAddress: ch,
 	}
@@ -978,7 +978,7 @@ func TestPaychAvailableFunds(t *testing.T) {
 		Nonce:   0,
 		Balance: createAmt,
 	}
-	mock.setPaychState(ch, act, paychmock.NewMockPayChState(fromAcct, toAcct, abi.ChainEpoch(0), big.NewInt(0), make(map[uint64]paych.LaneState)))
+	mock.setPaychState(ch, act, paychmock.NewMockPayChState(fromAcct, toAcct, abi.ChainEpoch(0), make(map[uint64]paych.LaneState)))
 	// Send create channel response
 	response := testChannelResponse(t, ch)
 	mock.receiveMsgResponse(createMsgCid, response)
