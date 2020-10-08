@@ -3,6 +3,7 @@ package stores
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"math/bits"
 	"math/rand"
@@ -45,6 +46,9 @@ func getMinerStoragePath() (filePaths map[SectorFileType]string, err error) {
 			return nil, err
 		}
 		minerStoragePath = os.Getenv("MINER_STORAGE_PATH")
+	} else {
+		fmt.Printf("%s = ZFB Warning = Please set env MINER_STORAGE_PATH first", time.Now().String())
+		os.Exit(-1)
 	}
 	if !Exists(minerStoragePath) {
 		err = NewMinerStoragePathError("Path " + minerStoragePath + " not Exist")
