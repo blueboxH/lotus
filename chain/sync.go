@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/filecoin-project/lotus/chain/actors/builtin"
+
 	"github.com/filecoin-project/lotus/node/modules/dtypes"
 
 	"github.com/filecoin-project/specs-actors/actors/runtime/proof"
@@ -33,8 +35,9 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/crypto"
 	"github.com/filecoin-project/lotus/extern/sector-storage/ffiwrapper"
-	"github.com/filecoin-project/specs-actors/actors/util/adt"
 	blst "github.com/supranational/blst/bindings/go"
+
+	adt0 "github.com/filecoin-project/specs-actors/actors/util/adt"
 
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/build"
@@ -455,9 +458,10 @@ func zipTipSetAndMessages(bs cbor.IpldStore, ts *types.TipSet, allbmsgs []*types
 // computeMsgMeta computes the root CID of the combined arrays of message CIDs
 // of both types (BLS and Secpk).
 func computeMsgMeta(bs cbor.IpldStore, bmsgCids, smsgCids []cid.Cid) (cid.Cid, error) {
-	store := adt.WrapStore(context.TODO(), bs)
-	bmArr := adt.MakeEmptyArray(store)
-	smArr := adt.MakeEmptyArray(store)
+	// block headers use adt0
+	store := adt0.WrapStore(context.TODO(), bs)
+	bmArr := adt0.MakeEmptyArray(store)
+	smArr := adt0.MakeEmptyArray(store)
 
 	for i, m := range bmsgCids {
 		c := cbg.CborCid(m)
@@ -597,7 +601,7 @@ func isPermanent(err error) bool {
 	return !errors.Is(err, ErrTemporal)
 }
 
-func (syncer *Syncer) ValidateTipSet(ctx context.Context, fts *store.FullTipSet) error {
+func (syncer *Syncer) ValidateTipSet(ctx context.Context, fts *store.FullTipSet, useCache bool) error {
 	ctx, span := trace.StartSpan(ctx, "validateTipSet")
 	defer span.End()
 
@@ -613,7 +617,7 @@ func (syncer *Syncer) ValidateTipSet(ctx context.Context, fts *store.FullTipSet)
 		b := b // rebind to a scoped variable
 
 		futures = append(futures, async.Err(func() error {
-			if err := syncer.ValidateBlock(ctx, b); err != nil {
+			if err := syncer.ValidateBlock(ctx, b, useCache); err != nil {
 				if isPermanent(err) {
 					syncer.bad.Add(b.Cid(), NewBadBlockReason([]cid.Cid{b.Cid()}, err.Error()))
 				}
@@ -680,7 +684,7 @@ func blockSanityChecks(h *types.BlockHeader) error {
 }
 
 // ValidateBlock should match up with 'Semantical Validation' in validation.md in the spec
-func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (err error) {
+func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock, useCache bool) (err error) {
 	defer func() {
 		// b.Cid() could panic for empty blocks that are used in tests.
 		if rerr := recover(); rerr != nil {
@@ -689,13 +693,15 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 		}
 	}()
 
-	isValidated, err := syncer.store.IsBlockValidated(ctx, b.Cid())
-	if err != nil {
-		return xerrors.Errorf("check block validation cache %s: %w", b.Cid(), err)
-	}
+	if useCache {
+		isValidated, err := syncer.store.IsBlockValidated(ctx, b.Cid())
+		if err != nil {
+			return xerrors.Errorf("check block validation cache %s: %w", b.Cid(), err)
+		}
 
-	if isValidated {
-		return nil
+		if isValidated {
+			return nil
+		}
 	}
 
 	validationStart := build.Clock.Now()
@@ -782,31 +788,35 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 			b.Header.ParentWeight, pweight)
 	}
 
-	// Stuff that needs stateroot / worker address
-	stateroot, precp, err := syncer.sm.TipSetState(ctx, baseTs)
-	if err != nil {
-		return xerrors.Errorf("get tipsetstate(%d, %s) failed: %w", h.Height, h.Parents, err)
-	}
-
-	if stateroot != h.ParentStateRoot {
-		msgs, err := syncer.store.MessagesForTipset(baseTs)
+	stateRootCheck := async.Err(func() error {
+		stateroot, precp, err := syncer.sm.TipSetState(ctx, baseTs)
 		if err != nil {
-			log.Error("failed to load messages for tipset during tipset state mismatch error: ", err)
-		} else {
-			log.Warn("Messages for tipset with mismatching state:")
-			for i, m := range msgs {
-				mm := m.VMMessage()
-				log.Warnf("Message[%d]: from=%s to=%s method=%d params=%x", i, mm.From, mm.To, mm.Method, mm.Params)
-			}
+			return xerrors.Errorf("get tipsetstate(%d, %s) failed: %w", h.Height, h.Parents, err)
 		}
 
-		return xerrors.Errorf("parent state root did not match computed state (%s != %s)", stateroot, h.ParentStateRoot)
-	}
+		if stateroot != h.ParentStateRoot {
+			msgs, err := syncer.store.MessagesForTipset(baseTs)
+			if err != nil {
+				log.Error("failed to load messages for tipset during tipset state mismatch error: ", err)
+			} else {
+				log.Warn("Messages for tipset with mismatching state:")
+				for i, m := range msgs {
+					mm := m.VMMessage()
+					log.Warnf("Message[%d]: from=%s to=%s method=%d params=%x", i, mm.From, mm.To, mm.Method, mm.Params)
+				}
+			}
 
-	if precp != h.ParentMessageReceipts {
-		return xerrors.Errorf("parent receipts root did not match computed value (%s != %s)", precp, h.ParentMessageReceipts)
-	}
+			return xerrors.Errorf("parent state root did not match computed state (%s != %s)", stateroot, h.ParentStateRoot)
+		}
 
+		if precp != h.ParentMessageReceipts {
+			return xerrors.Errorf("parent receipts root did not match computed value (%s != %s)", precp, h.ParentMessageReceipts)
+		}
+
+		return nil
+	})
+
+	// Stuff that needs worker address
 	waddr, err := stmgr.GetMinerWorkerRaw(ctx, syncer.sm, lbst, h.Miner)
 	if err != nil {
 		return xerrors.Errorf("GetMinerWorkerRaw failed: %w", err)
@@ -817,13 +827,13 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 			return xerrors.Errorf("block is not claiming to be a winner")
 		}
 
-		hp, err := stmgr.MinerHasMinPower(ctx, syncer.sm, h.Miner, lbts)
+		eligible, err := stmgr.MinerEligibleToMine(ctx, syncer.sm, h.Miner, baseTs, lbts)
 		if err != nil {
 			return xerrors.Errorf("determining if miner has min power failed: %w", err)
 		}
 
-		if !hp {
-			return xerrors.New("block's miner does not meet minimum power threshold")
+		if !eligible {
+			return xerrors.New("block's miner is ineligible to mine")
 		}
 
 		rBeacon := *prevBeacon
@@ -927,6 +937,7 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 		winnerCheck,
 		msgsCheck,
 		baseFeeCheck,
+		stateRootCheck,
 	}
 
 	var merr error
@@ -954,8 +965,10 @@ func (syncer *Syncer) ValidateBlock(ctx context.Context, b *types.FullBlock) (er
 		return mulErr
 	}
 
-	if err := syncer.store.MarkBlockAsValidated(ctx, b.Cid()); err != nil {
-		return xerrors.Errorf("caching block validation %s: %w", b.Cid(), err)
+	if useCache {
+		if err := syncer.store.MarkBlockAsValidated(ctx, b.Cid()); err != nil {
+			return xerrors.Errorf("caching block validation %s: %w", b.Cid(), err)
+		}
 	}
 
 	return nil
@@ -1078,7 +1091,7 @@ func (syncer *Syncer) checkBlockMessages(ctx context.Context, b *types.FullBlock
 				return xerrors.Errorf("failed to get actor: %w", err)
 			}
 
-			if !act.IsAccountActor() {
+			if !builtin.IsAccountActor(act.Code) {
 				return xerrors.New("Sender must be an account actor")
 			}
 			nonces[m.From] = act.Nonce
@@ -1092,9 +1105,9 @@ func (syncer *Syncer) checkBlockMessages(ctx context.Context, b *types.FullBlock
 		return nil
 	}
 
-	store := adt.WrapStore(ctx, cst)
+	store := adt0.WrapStore(ctx, cst)
 
-	bmArr := adt.MakeEmptyArray(store)
+	bmArr := adt0.MakeEmptyArray(store)
 	for i, m := range b.BlsMessages {
 		if err := checkMsg(m); err != nil {
 			return xerrors.Errorf("block had invalid bls message at index %d: %w", i, err)
@@ -1106,7 +1119,7 @@ func (syncer *Syncer) checkBlockMessages(ctx context.Context, b *types.FullBlock
 		}
 	}
 
-	smArr := adt.MakeEmptyArray(store)
+	smArr := adt0.MakeEmptyArray(store)
 	for i, m := range b.SecpkMessages {
 		if err := checkMsg(m); err != nil {
 			return xerrors.Errorf("block had invalid secpk message at index %d: %w", i, err)
@@ -1457,7 +1470,7 @@ func (syncer *Syncer) syncMessagesAndCheckState(ctx context.Context, headers []*
 
 	return syncer.iterFullTipsets(ctx, headers, func(ctx context.Context, fts *store.FullTipSet) error {
 		log.Debugw("validating tipset", "height", fts.TipSet().Height(), "size", len(fts.TipSet().Cids()))
-		if err := syncer.ValidateTipSet(ctx, fts); err != nil {
+		if err := syncer.ValidateTipSet(ctx, fts, true); err != nil {
 			log.Errorf("failed to validate tipset: %+v", err)
 			return xerrors.Errorf("message processing failed: %w", err)
 		}

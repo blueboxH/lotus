@@ -211,6 +211,8 @@ minerLoop:
 			base = prebase
 		}
 
+		base.NullRounds += injectNulls // testing
+
 		if base.TipSet.Equals(lastBase.TipSet) && lastBase.NullRounds == base.NullRounds {
 			log.Warnf("BestMiningCandidate from the previous round: %s (nulls:%d)", lastBase.TipSet.Cids(), lastBase.NullRounds)
 			if !m.niceSleep(time.Duration(build.BlockDelaySecs) * time.Second) {
@@ -218,8 +220,6 @@ minerLoop:
 			}
 			continue
 		}
-
-		base.NullRounds += injectNulls // testing
 
 		b, err := m.mineOne(ctx, base)
 		if err != nil {
@@ -362,7 +362,7 @@ func (m *Miner) mineOne(ctx context.Context, base *MiningBase) (*types.BlockMsg,
 	if mbi == nil {
 		return nil, nil
 	}
-	if !mbi.HasMinPower {
+	if !mbi.EligibleForMining {
 		// slashed or just have no power yet
 		return nil, nil
 	}
