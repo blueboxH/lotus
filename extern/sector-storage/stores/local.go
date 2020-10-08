@@ -47,7 +47,7 @@ func getMinerStoragePath() (filePaths map[SectorFileType]string, err error) {
 		}
 		minerStoragePath = os.Getenv("MINER_STORAGE_PATH")
 	} else {
-		fmt.Printf("%s = ZFB Warning = Please set env MINER_STORAGE_PATH first", time.Now().String())
+		fmt.Printf("%s = ZFB Warning = Please set env MINER_STORAGE_PATH first.\n", time.Now().String())
 		os.Exit(-1)
 	}
 	if !Exists(minerStoragePath) {
