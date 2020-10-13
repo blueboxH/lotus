@@ -299,10 +299,6 @@ func (sb *Sealer) UnsealPiece(ctx context.Context, sector abi.SectorID, offset s
 				defer opr.Close() // nolint
 
 				padwriter := fr32.NewPadWriter(out)
-				if err != nil {
-					perr = xerrors.Errorf("creating new padded writer: %w", err)
-					return
-				}
 
 				bsize := uint64(size.Padded())
 				if bsize > uint64(runtime.NumCPU())*fr32.MTTresh {
@@ -311,7 +307,7 @@ func (sb *Sealer) UnsealPiece(ctx context.Context, sector abi.SectorID, offset s
 
 				bw := bufio.NewWriterSize(padwriter, int(abi.PaddedPieceSize(bsize).Unpadded()))
 
-				_, err = io.CopyN(bw, opr, int64(size))
+				_, err := io.CopyN(bw, opr, int64(size))
 				if err != nil {
 					perr = xerrors.Errorf("copying data: %w", err)
 					return

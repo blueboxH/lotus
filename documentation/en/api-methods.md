@@ -83,11 +83,14 @@
   * [MsigAddCancel](#MsigAddCancel)
   * [MsigAddPropose](#MsigAddPropose)
   * [MsigApprove](#MsigApprove)
+  * [MsigApproveTxnHash](#MsigApproveTxnHash)
   * [MsigCancel](#MsigCancel)
   * [MsigCreate](#MsigCreate)
   * [MsigGetAvailableBalance](#MsigGetAvailableBalance)
   * [MsigGetVested](#MsigGetVested)
+  * [MsigGetVestingSchedule](#MsigGetVestingSchedule)
   * [MsigPropose](#MsigPropose)
+  * [MsigRemoveSigner](#MsigRemoveSigner)
   * [MsigSwapApprove](#MsigSwapApprove)
   * [MsigSwapCancel](#MsigSwapCancel)
   * [MsigSwapPropose](#MsigSwapPropose)
@@ -162,10 +165,12 @@
   * [StateSectorGetInfo](#StateSectorGetInfo)
   * [StateSectorPartition](#StateSectorPartition)
   * [StateSectorPreCommitInfo](#StateSectorPreCommitInfo)
+  * [StateVMCirculatingSupplyInternal](#StateVMCirculatingSupplyInternal)
   * [StateVerifiedClientStatus](#StateVerifiedClientStatus)
   * [StateVerifiedRegistryRootKey](#StateVerifiedRegistryRootKey)
   * [StateVerifierStatus](#StateVerifierStatus)
   * [StateWaitMsg](#StateWaitMsg)
+  * [StateWaitMsgLimited](#StateWaitMsgLimited)
 * [Sync](#Sync)
   * [SyncCheckBad](#SyncCheckBad)
   * [SyncCheckpoint](#SyncCheckpoint)
@@ -173,6 +178,7 @@
   * [SyncMarkBad](#SyncMarkBad)
   * [SyncState](#SyncState)
   * [SyncSubmitBlock](#SyncSubmitBlock)
+  * [SyncUnmarkAllBad](#SyncUnmarkAllBad)
   * [SyncUnmarkBad](#SyncUnmarkBad)
   * [SyncValidateTipset](#SyncValidateTipset)
 * [Wallet](#Wallet)
@@ -2005,7 +2011,33 @@ Response:
 ```
 
 ### MsigApprove
-MsigApprove approves a previously-proposed multisig message
+MsigApprove approves a previously-proposed multisig message by transaction ID
+It takes the following params: <multisig address>, <proposed transaction ID> <signer address>
+
+
+Perms: sign
+
+Inputs:
+```json
+[
+  "f01234",
+  42,
+  "f01234"
+]
+```
+
+Response:
+```json
+{
+  "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+}
+```
+
+### MsigApproveTxnHash
+MsigApproveTxnHash approves a previously-proposed multisig message, specified
+using both transaction ID and a hash of the parameters used in the
+proposal. This method of approval can be used to ensure you only approve
+exactly the transaction you think you are.
 It takes the following params: <multisig address>, <proposed message ID>, <proposer address>, <recipient address>, <value to transfer>,
 <sender address of the approve msg>, <method to call in the proposed message>, <params to include in the proposed message>
 
@@ -2035,7 +2067,7 @@ Response:
 
 ### MsigCancel
 MsigCancel cancels a previously-proposed multisig message
-It takes the following params: <multisig address>, <proposed message ID>, <recipient address>, <value to transfer>,
+It takes the following params: <multisig address>, <proposed transaction ID>, <recipient address>, <value to transfer>,
 <sender address of the cancel msg>, <method to call in the proposed message>, <params to include in the proposed message>
 
 
@@ -2143,6 +2175,36 @@ Inputs:
 
 Response: `"0"`
 
+### MsigGetVestingSchedule
+MsigGetVestingSchedule returns the vesting details of a given multisig.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  "f01234",
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response:
+```json
+{
+  "InitialBalance": "0",
+  "StartEpoch": 10101,
+  "UnlockDuration": 10101
+}
+```
+
 ### MsigPropose
 MsigPropose proposes a multisig message
 It takes the following params: <multisig address>, <recipient address>, <value to transfer>,
@@ -2160,6 +2222,33 @@ Inputs:
   "f01234",
   42,
   "Ynl0ZSBhcnJheQ=="
+]
+```
+
+Response:
+```json
+{
+  "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+}
+```
+
+### MsigRemoveSigner
+MsigRemoveSigner proposes the removal of a signer from the multisig.
+It accepts the multisig to make the change on, the proposer address to
+send the message from, the address to be removed, and a boolean
+indicating whether or not the signing threshold should be lowered by one
+along with the address removal.
+
+
+Perms: sign
+
+Inputs:
+```json
+[
+  "f01234",
+  "f01234",
+  "f01234",
+  true
 ]
 ```
 
@@ -3006,7 +3095,8 @@ Response:
 ```
 
 ### StateCirculatingSupply
-StateCirculatingSupply returns the circulating supply of Filecoin at the given tipset
+StateCirculatingSupply returns the exact circulating supply of Filecoin at the given tipset.
+This is not used anywhere in the protocol itself, and is only for external consumption.
 
 
 Perms: read
@@ -3025,16 +3115,7 @@ Inputs:
 ]
 ```
 
-Response:
-```json
-{
-  "FilVested": "0",
-  "FilMined": "0",
-  "FilBurnt": "0",
-  "FilLocked": "0",
-  "FilCirculating": "0"
-}
-```
+Response: `"0"`
 
 ### StateCompute
 StateCompute is a flexible command that applies the given messages on the given tipset.
@@ -3887,7 +3968,7 @@ Inputs:
 ]
 ```
 
-Response: `4`
+Response: `5`
 
 ### StateReadState
 StateReadState returns the indicated actor's state.
@@ -4177,6 +4258,38 @@ Response:
 }
 ```
 
+### StateVMCirculatingSupplyInternal
+StateVMCirculatingSupplyInternal returns an approximation of the circulating supply of Filecoin at the given tipset.
+This is the value reported by the runtime interface to actors code.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ]
+]
+```
+
+Response:
+```json
+{
+  "FilVested": "0",
+  "FilMined": "0",
+  "FilBurnt": "0",
+  "FilLocked": "0",
+  "FilCirculating": "0"
+}
+```
+
 ### StateVerifiedClientStatus
 StateVerifiedClientStatus returns the data cap for the given address.
 Returns nil if there is no entry in the data cap table for the
@@ -4263,6 +4376,49 @@ Inputs:
     "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
   },
   42
+]
+```
+
+Response:
+```json
+{
+  "Message": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
+  "Receipt": {
+    "ExitCode": 0,
+    "Return": "Ynl0ZSBhcnJheQ==",
+    "GasUsed": 9
+  },
+  "ReturnDec": {},
+  "TipSet": [
+    {
+      "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+    },
+    {
+      "/": "bafy2bzacebp3shtrn43k7g3unredz7fxn4gj533d3o43tqn2p2ipxxhrvchve"
+    }
+  ],
+  "Height": 10101
+}
+```
+
+### StateWaitMsgLimited
+StateWaitMsgLimited looks back up to limit epochs in the chain for a message.
+If not found, it blocks until the message arrives on chain, and gets to the
+indicated confidence depth.
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  },
+  42,
+  10101
 ]
 ```
 
@@ -4471,6 +4627,16 @@ Inputs:
 
 Response: `{}`
 
+### SyncUnmarkAllBad
+SyncUnmarkAllBad purges bad block cache, making it possible to sync to chains previously marked as bad
+
+
+Perms: admin
+
+Inputs: `null`
+
+Response: `{}`
+
 ### SyncUnmarkBad
 SyncUnmarkBad unmarks a blocks as bad, making it possible to be validated and synced again.
 
@@ -4569,7 +4735,7 @@ Inputs:
 Response:
 ```json
 {
-  "Type": "string value",
+  "Type": "bls",
   "PrivateKey": "Ynl0ZSBhcnJheQ=="
 }
 ```
@@ -4599,7 +4765,7 @@ Inputs:
 ```json
 [
   {
-    "Type": "string value",
+    "Type": "bls",
     "PrivateKey": "Ynl0ZSBhcnJheQ=="
   }
 ]
@@ -4619,6 +4785,8 @@ Response: `null`
 
 ### WalletNew
 WalletNew creates a new address in the wallet with the given sigType.
+Available key types: bls, secp256k1, secp256k1-ledger
+Support for numerical types: 1 - secp256k1, 2 - BLS is deprecated
 
 
 Perms: write
@@ -4626,7 +4794,7 @@ Perms: write
 Inputs:
 ```json
 [
-  2
+  "bls"
 ]
 ```
 
