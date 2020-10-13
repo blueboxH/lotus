@@ -229,6 +229,12 @@ var runCmd = &cli.Command{
 
 		taskTypes = append(taskTypes, sealtasks.TTFetch, sealtasks.TTCommit1, sealtasks.TTFinalize)
 
+		// inject mount reflect
+		minerStoragePathErr := stores.GetMinerStoragePath()
+		if minerStoragePathErr != nil {
+			os.Exit(-1)
+		}
+
 		if cctx.Bool("addpiece") {
 			taskTypes = append(taskTypes, sealtasks.TTAddPiece)
 		}

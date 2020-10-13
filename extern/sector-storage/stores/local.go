@@ -3,6 +3,7 @@ package stores
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"math/bits"
 	"math/rand"
@@ -20,7 +21,7 @@ import (
 )
 
 // ============================= mod ===========================
-var MinerStoragePath, minerStoragePathErr = getMinerStoragePath()
+var MinerStoragePaths map[SectorFileType]string
 
 type MinerStoragePathError struct {
 	errorMsg string
@@ -35,43 +36,50 @@ func (err MinerStoragePathError) Error() string {
 	return err.errorMsg
 }
 
-func getMinerStoragePath() (filePaths map[SectorFileType]string, err error) {
-	defaultMinerStoragePath := "/lustre/lotusminer_public/"
-	minerStoragePath := defaultMinerStoragePath
+func GetMinerStoragePath() (err error) {
+	minerStoragePath := ""
 	if os.Getenv("MINER_STORAGE_PATH") != "" {
 		if !filepath.IsAbs(os.Getenv("MINER_STORAGE_PATH")) {
 			err = NewMinerStoragePathError("miner storage path must be absolute path")
+			fmt.Printf("%s = ZFB Warning = miner storage path must be absolute path.\n", time.Now().String())
 			os.Exit(-1)
-			return nil, err
+			return err
 		}
 		minerStoragePath = os.Getenv("MINER_STORAGE_PATH")
+	} else {
+		fmt.Printf("%s = ZFB Warning = Please set env MINER_STORAGE_PATH first.\n", time.Now().String())
+		os.Exit(-1)
 	}
 	if !Exists(minerStoragePath) {
 		err = NewMinerStoragePathError("Path " + minerStoragePath + " not Exist")
+		fmt.Printf("%s = ZFB Warning = Path %s not Exist.\n", time.Now().String(), minerStoragePath)
 		os.Exit(-1)
-		return nil, err
+		return err
 	}
-	filePaths = make(map[SectorFileType]string)
+	MinerStoragePaths = make(map[SectorFileType]string)
 	for _, fileType := range PathTypes {
 		envOfPathType := os.Getenv("MINER_STORAGE_PATH_" + strings.ToUpper(fileType.String()))
 		if envOfPathType != "" {
 			if !filepath.IsAbs(envOfPathType) {
 				err = NewMinerStoragePathError("miner storage path must be absolute path")
+				fmt.Printf("%s = ZFB Warning =  Miner storage path must be absolute path", time.Now().String())
 				os.Exit(-1)
-				return nil, err
+				return err
 			}
-			filePaths[fileType] = envOfPathType
+			MinerStoragePaths[fileType] = envOfPathType
 		} else {
-			filePaths[fileType] = filepath.Join(minerStoragePath, fileType.String())
+			MinerStoragePaths[fileType] = filepath.Join(minerStoragePath, fileType.String())
 		}
 
-		if !Exists(filePaths[fileType]) {
-			err = NewMinerStoragePathError("Path " + filePaths[fileType] + " not Exist")
+		if !Exists(MinerStoragePaths[fileType]) {
+			err = NewMinerStoragePathError("Path " + MinerStoragePaths[fileType] + " not Exist")
+			fmt.Printf("%s = ZFB Warning = Path %s not Exist.\n", time.Now().String(), MinerStoragePaths[fileType])
 			os.Exit(-1)
-			return nil, err
+			return err
 		}
 	}
-	return filePaths, nil
+
+	return nil
 }
 
 // ============================= mod ===========================
@@ -328,11 +336,7 @@ func (st *Local) reportHealth(ctx context.Context) {
 
 // ============================= mod ===========================
 func (st *Local) SendSectorToMiner(ctx context.Context, sector abi.SectorID, spt abi.RegisteredSealProof, ft SectorFileType) error {
-	if minerStoragePathErr != nil {
-		return minerStoragePathErr
-	} else {
-		log.Infof("= ZFB Warning = latest version of storage path show %v", MinerStoragePath)
-	}
+
 	log.Infof("======================== ZFB Warning ========================= start send sector %v to miner storage", sector)
 	paths, _, err := st.AcquireSector(ctx, sector, spt, ft, FTNone, PathSealing, AcquireCopy)
 	if err != nil {
@@ -346,7 +350,7 @@ func (st *Local) SendSectorToMiner(ctx context.Context, sector abi.SectorID, spt
 		if strings.Contains(PathByType(paths, fileType), "lotusminer") {
 			continue
 		}
-		if err := move(PathByType(paths, fileType), filepath.Join(MinerStoragePath[fileType], filepath.Base(PathByType(paths, fileType)))); err != nil {
+		if err := move(PathByType(paths, fileType), filepath.Join(MinerStoragePaths[fileType], filepath.Base(PathByType(paths, fileType)))); err != nil {
 			log.Infof("======================== ZFB Warning ========================= send sector %v to miner storage error,fileType: %s,%s", sector, fileType, err)
 			return err
 		}
