@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/elastic/go-sysinfo"
 	"github.com/hashicorp/go-multierror"
@@ -141,7 +142,7 @@ func (l *LocalWorker) SealPreCommit1(ctx context.Context, sector abi.SectorID, t
 	if err != nil {
 		return nil, err
 	}
-
+	time.Sleep(time.Minute * 2) // todo delete
 	return sb.SealPreCommit1(ctx, sector, ticket, pieces)
 }
 
