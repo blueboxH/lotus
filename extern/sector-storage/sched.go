@@ -917,8 +917,13 @@ func (sh *scheduler) assignWorker(taskDone chan struct{}, wid WorkerID, w *worke
 			if (sealtasks.TTAddPieceHT == req.taskType || sealtasks.TTPreCommit1 == req.taskType || sealtasks.TTPreCommit2 == req.taskType) && SchedulerHt.getWorkerMaxSectorNum(w.info.Hostname) > 0 {
 				SchedulerHt.setWorkerSectorState(w.info.Hostname, req.sector.Number, req.taskType, "running")
 			}
+
+			// ==========================================      mod     ===================================
+			startP1(w.info.Hostname, req.sector)
+			// ==========================================      mod     ===================================
 			err = req.work(req.ctx, w.wt.worker(w.w))
 			// ==========================================      mod     ===================================
+			finishP1(w.info.Hostname, req.sector)
 			if err == nil {
 				SchedulerHt.afterTaskFinish(req.sector, req.taskType, w.info.Hostname)
 			}

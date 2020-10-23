@@ -363,6 +363,13 @@ func (sh schedulerHt) deleteSectorLastHost(sectorNumber abi.SectorNumber) {
 	}
 }
 
+func (sh schedulerHt) publish(message string) {
+	_, err := redo("PUBLISH", getRedisPrefix()+"p1State", message)
+	if err != nil {
+		log.Info(err)
+	}
+}
+
 //func (sh schedulerHt) SetTicketValue(value abi.SealRandomness, epoch abi.ChainEpoch) {
 //	_, err := redo("hset", getRedisPrefix()+"ticketValue", value, epoch)
 //	if err != nil {
@@ -555,4 +562,35 @@ func Exists(path string) bool {
 		return false
 	}
 	return true
+}
+
+var p1WorkerState map[string]map[abi.SectorNumber]struct{} = make(map[string]map[abi.SectorNumber]struct{})
+
+func startP1(host string, sector abi.SectorID)  {
+	workerP1Map := p1WorkerState[host]
+	if workerP1Map == nil {
+		workerP1Map = make(map[abi.SectorNumber]struct{})
+	}
+
+	if len(workerP1Map) == 0 {
+		SchedulerHt.publish(host+"-"+"on")
+		log.Infof("worker %s start p1 %s", host, sector)
+	}
+	workerP1Map[sector.Number] = struct{}{}
+	log.Warn(workerP1Map)
+}
+
+func finishP1(host string, sector abi.SectorID)  {
+	workerP1Map := p1WorkerState[host]
+	if workerP1Map == nil { // 正常情况下不会出现这种情况
+		workerP1Map = make(map[abi.SectorNumber]struct{})
+	}
+
+	delete(workerP1Map, sector.Number)
+
+	if len(workerP1Map) == 0 {
+		SchedulerHt.publish(host+"-"+"off")
+		log.Infof("worker %s finish p1 %s", host, sector)
+	}
+	log.Warn(workerP1Map)
 }
