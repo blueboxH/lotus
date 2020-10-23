@@ -570,6 +570,7 @@ func startP1(host string, sector abi.SectorID)  {
 	workerP1Map := p1WorkerState[host]
 	if workerP1Map == nil {
 		workerP1Map = make(map[abi.SectorNumber]struct{})
+		p1WorkerState[host] = workerP1Map
 	}
 
 	if len(workerP1Map) == 0 {
@@ -584,6 +585,7 @@ func finishP1(host string, sector abi.SectorID)  {
 	workerP1Map := p1WorkerState[host]
 	if workerP1Map == nil { // 正常情况下不会出现这种情况
 		workerP1Map = make(map[abi.SectorNumber]struct{})
+		p1WorkerState[host] = workerP1Map
 	}
 
 	delete(workerP1Map, sector.Number)
