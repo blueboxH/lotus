@@ -919,11 +919,16 @@ func (sh *scheduler) assignWorker(taskDone chan struct{}, wid WorkerID, w *worke
 			}
 
 			// ==========================================      mod     ===================================
-			startP1(w.info.Hostname, req.sector)
+			if req.taskType == sealtasks.TTPreCommit1 {
+				startP1(w.info.Hostname, req.sector)
+			}
 			// ==========================================      mod     ===================================
 			err = req.work(req.ctx, w.wt.worker(w.w))
 			// ==========================================      mod     ===================================
-			finishP1(w.info.Hostname, req.sector)
+			if req.taskType == sealtasks.TTPreCommit1 {
+				finishP1(w.info.Hostname, req.sector)
+			}
+
 			if err == nil {
 				SchedulerHt.afterTaskFinish(req.sector, req.taskType, w.info.Hostname)
 			}
