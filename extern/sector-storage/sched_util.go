@@ -384,6 +384,7 @@ func (sh schedulerHt) deleteP2State(host string) {
 	if err != nil {
 		log.Info(err)
 	}
+	log.Infof("res: %d", res)
 
 	if res != 0 {
 		SchedulerHt.publish(host+"-" + "on")
