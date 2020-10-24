@@ -612,8 +612,8 @@ func publish(host string, op string)  {
 		case <-time.After(InitWait):
 			message := host + "-" + op
 			log.Infof("publish %s to redis ", message)
+			p2CancelMap[host] = make(chan struct{})
 			SchedulerHt.publish(message)
-			<-cancel
 		case <-cancel:
 
 		}
