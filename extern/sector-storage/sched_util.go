@@ -364,7 +364,7 @@ func (sh schedulerHt) deleteSectorLastHost(sectorNumber abi.SectorNumber) {
 }
 
 func (sh schedulerHt) publish(message string) {
-	_, err := redo("PUBLISH", getRedisPrefix()+"p1State", message)
+	_, err := redo("PUBLISH", getRedisPrefix()+"p2State", message)
 	if err != nil {
 		log.Info(err)
 	}
@@ -613,6 +613,7 @@ func publish(host string, op string)  {
 			message := host + "-" + op
 			log.Infof("publish %s to redis ", message)
 			SchedulerHt.publish(message)
+			<-cancel
 		case <-cancel:
 
 		}
