@@ -602,7 +602,10 @@ var p2CancelMap map[string]chan struct{} = make(map[string]chan struct{})
 func publish(host string, op string)  {
 	cancel := p2CancelMap[host]
 
-	if cancel == nil {
+	if cancel != nil {
+		cancel <- struct{}{}
+	} else {
+		log.Infof("init chan")
 		cancel = make(chan struct{})
 		p2CancelMap[host] = cancel
 	}
@@ -613,13 +616,10 @@ func publish(host string, op string)  {
 			message := host + "-" + op
 			log.Infof("publish %s to redis ", message)
 			SchedulerHt.publish(message)
-			cancel = make(chan struct{})
-			p2CancelMap[host] = cancel
+
+			p2CancelMap[host] = make(chan struct{})
 		case <-cancel:
 
 		}
 	}()
-
-	cancel <- struct{}{}
-
 }
