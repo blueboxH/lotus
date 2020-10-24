@@ -1,6 +1,7 @@
 package sectorstorage
 
 import (
+	"context"
 	"errors"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/lotus/extern/sector-storage/sealtasks"
@@ -595,4 +596,26 @@ func finishP1(host string, sector abi.SectorID)  {
 		log.Infof("worker %s finish p1 %s", host, sector)
 	}
 	log.Warn(workerP1Map)
+}
+
+var p2CancelMap map[string]chan struct{} = make(map[string]chan struct{})
+
+func publish(host string, op string)  {
+	cancel := p2CancelMap[host]
+	if cancel != nil {
+		cancel <- struct{}{}
+	} else {
+		p2CancelMap[host] = make(chan struct{})
+	}
+
+	go func() {
+		select {
+		case <-time.After(InitWait):
+			message := host + "-" + op
+			log.Infof("publish %s to redis ", message)
+			SchedulerHt.publish(message)
+		case <-cancel:
+
+		}
+	}()
 }
