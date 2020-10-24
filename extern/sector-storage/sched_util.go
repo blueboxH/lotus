@@ -370,6 +370,20 @@ func (sh schedulerHt) publish(message string) {
 	}
 }
 
+func (sh schedulerHt) setP2State(host string, op string) {
+	_, err := redo("hset", getRedisPrefix()+"P2_STATE", host, op)
+	if err != nil {
+		log.Info(err)
+	}
+}
+
+func (sh schedulerHt) deleteP2State(host string) {
+	_, err := redo("hdel", getRedisPrefix()+"P2_STATE", host)
+	if err != nil {
+		log.Info(err)
+	}
+}
+
 //func (sh schedulerHt) SetTicketValue(value abi.SealRandomness, epoch abi.ChainEpoch) {
 //	_, err := redo("hset", getRedisPrefix()+"ticketValue", value, epoch)
 //	if err != nil {
@@ -599,25 +613,29 @@ func finishP1(host string, sector abi.SectorID)  {
 
 var p2CancelMap map[string]chan struct{} = make(map[string]chan struct{})
 
-func publish(host string, op string)  {
+func publish(host string, op string) {
+
 	cancel := p2CancelMap[host]
 
-	if cancel == nil {
-		cancel = make(chan struct{})
-		p2CancelMap[host] = cancel
-	}
+	currentCancel := make(chan struct{})
 
 	go func() {
 		select {
-		case <-time.After(InitWait):
+		case <-time.After(5 * time.Second):
 			message := host + "-" + op
 			log.Infof("publish %s to redis ", message)
 			SchedulerHt.publish(message)
-			<-cancel
-		case <-cancel:
-
+			SchedulerHt.setP2State(host, op)
+		case <-currentCancel:
 		}
 	}()
 
-	cancel <- struct{}{}
+	if cancel != nil {
+		select {
+		case cancel <- struct{}{}:
+		}
+	}
+
+	p2CancelMap[host] = currentCancel
+
 }

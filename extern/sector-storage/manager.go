@@ -193,6 +193,7 @@ func (m *Manager) AddWorker(ctx context.Context, w Worker) error {
 
 		// 加入p1机器队列
 		SchedulerHt.addToPSet(hostname)
+		SchedulerHt.setP2State(hostname, "off")
 	}
 
 	if _, supported := tasks[sealtasks.TTCommit2]; supported {

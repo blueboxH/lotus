@@ -1017,6 +1017,8 @@ func (sh *scheduler) workerCleanup(wid WorkerID, w *workerHandle) {
 		// ==========================================      mod     ===================================
 		SchedulerHt.delPSet(w.info.Hostname)
 		SchedulerHt.delCSet(w.info.Hostname)
+		SchedulerHt.deleteP2State(w.info.Hostname)
+
 		log.Infof("dropWorker %s and delete from pPet and cSet", w.info.Hostname)
 
 		var tmpRequest []*workerRequest
