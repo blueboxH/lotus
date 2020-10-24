@@ -371,6 +371,7 @@ func (sh schedulerHt) publish(message string) {
 }
 
 func (sh schedulerHt) setP2State(host string, op string) {
+	SchedulerHt.publish(host+"-" + op)
 	_, err := redo("hset", getRedisPrefix()+"P2_STATE", host, op)
 	if err != nil {
 		log.Info(err)
@@ -378,6 +379,7 @@ func (sh schedulerHt) setP2State(host string, op string) {
 }
 
 func (sh schedulerHt) deleteP2State(host string) {
+	SchedulerHt.publish(host+"-" + "on")
 	_, err := redo("hdel", getRedisPrefix()+"P2_STATE", host)
 	if err != nil {
 		log.Info(err)
@@ -621,10 +623,9 @@ func publish(host string, op string) {
 
 	go func() {
 		select {
-		case <-time.After(5 * time.Second):
-			message := host + "-" + op
-			log.Infof("publish %s to redis ", message)
-			SchedulerHt.publish(message)
+		case <-time.After(3 * time.Minute):
+
+			log.Infof("publish %s-%s to redis ", host , op)
 			SchedulerHt.setP2State(host, op)
 		case <-currentCancel:
 		}
