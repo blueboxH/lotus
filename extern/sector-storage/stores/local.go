@@ -354,8 +354,15 @@ func (st *Local) SendSectorToMiner(ctx context.Context, sector abi.SectorID, spt
 			log.Infof("======================== ZFB Warning ========================= send sector %v to miner storage error,fileType: %s,%s", sector, fileType, err)
 			return err
 		}
-
-		log.Infof("======================== ZFB Warning ========================= send sector %v to miner storage success,fileType: %s", sector, fileType)
+		if Exists("/filecoin/cacheDump") && fileType == FTCache {
+			log.Infof("= ZFB Warning = Dump after mv %v cache ", sector)
+			os.Exit(-1)
+		}
+		if Exists("/filecoin/sealedDump") && fileType == FTSealed {
+			log.Infof("= ZFB Warning = Dump after mv %v sealed", sector)
+			os.Exit(-1)
+		}
+		log.Infof("======================== ZFB Warning ========================= send sector %v to miner storage success,fileType: %s,targetPath: %s", sector, fileType, filepath.Join(MinerStoragePaths[fileType], filepath.Base(PathByType(paths, fileType))))
 	}
 	return nil
 
