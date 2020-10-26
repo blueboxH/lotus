@@ -2,7 +2,7 @@ module github.com/filecoin-project/lotus
 
 go 1.14
 
-replace github.com/filecoin-project/go-jsonrpc => github.com/blueboxH/go-jsonrpc v0.1.2-0.20200911092926-ebed4fe3f8ca
+replace github.com/filecoin-project/go-jsonrpc => github.com/blueboxH/go-jsonrpc v0.1.2-0.20201026030334-b69012de2ba1
 
 require (
 	contrib.go.opencensus.io/exporter/jaeger v0.1.0
