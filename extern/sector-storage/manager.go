@@ -3,8 +3,10 @@ package sectorstorage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"os"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/ipfs/go-cid"
@@ -27,6 +29,16 @@ var log = logging.Logger("advmgr")
 var ErrNoWorkers = errors.New("no suitable workers found")
 
 type URLs []string
+
+var currentMinerStoragePath = ""
+
+func GetCurrentMinerStoragePath() {
+	if os.Getenv("CURRENT_MINER_STORAGE_PATH") == "" {
+		fmt.Println("Please set env CURRENT_MINER_STORAGE_PATH")
+		os.Exit(-1)
+	}
+	currentMinerStoragePath = os.Getenv("CURRENT_MINER_STORAGE_PATH")
+}
 
 type Worker interface {
 	ffiwrapper.StorageSealer
@@ -488,7 +500,7 @@ func (m *Manager) FinalizeSector(ctx context.Context, sector abi.SectorID, keepU
 				minerFileTypes  stores.SectorFileType
 			)
 			for _, minerStorageInfo := range minerStorageInfos {
-				if minerStorageInfo.CanStore && minerStorageInfo.LocalPath == "/filecoin/lotusminer" {
+				if minerStorageInfo.CanStore && minerStorageInfo.LocalPath == currentMinerStoragePath {
 					minerStorageID = minerStorageInfo.ID
 				}
 			}

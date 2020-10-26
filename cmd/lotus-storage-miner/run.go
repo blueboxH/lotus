@@ -38,7 +38,7 @@ var runCmd = &cli.Command{
 		},
 		&cli.BoolFlag{
 			Name:  "custom-rpc-log",
-			Value:true,
+			Value: true,
 		},
 		&cli.BoolFlag{
 			Name:  "enable-gpu-proving",
@@ -56,6 +56,7 @@ var runCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
+
 		if !cctx.Bool("enable-gpu-proving") {
 			err := os.Setenv("BELLMAN_NO_GPU", "true")
 			if err != nil {
