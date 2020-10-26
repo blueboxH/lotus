@@ -630,6 +630,7 @@ func publish(host string, op string) {
 		case <-time.After(1 * time.Minute):
 
 			log.Infof("publish %s-%s to redis ", host , op)
+			delete(p2CancelMap, host)
 			SchedulerHt.setP2State(host, op)
 		case <-currentCancel:
 		}
