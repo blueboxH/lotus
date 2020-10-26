@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -56,7 +57,7 @@ var runCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
-
+		sectorstorage.GetCurrentMinerStoragePath()
 		if !cctx.Bool("enable-gpu-proving") {
 			err := os.Setenv("BELLMAN_NO_GPU", "true")
 			if err != nil {
