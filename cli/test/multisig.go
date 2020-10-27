@@ -10,25 +10,16 @@ import (
 	"github.com/filecoin-project/go-address"
 	"github.com/filecoin-project/lotus/api/test"
 	"github.com/filecoin-project/lotus/chain/types"
-	logging "github.com/ipfs/go-log/v2"
 	"github.com/stretchr/testify/require"
 	lcli "github.com/urfave/cli/v2"
 )
-
-func QuietMiningLogs() {
-	logging.SetLogLevel("miner", "ERROR")
-	logging.SetLogLevel("chainstore", "ERROR")
-	logging.SetLogLevel("chain", "ERROR")
-	logging.SetLogLevel("sub", "ERROR")
-	logging.SetLogLevel("storageminer", "ERROR")
-}
 
 func RunMultisigTest(t *testing.T, cmds []*lcli.Command, clientNode test.TestNode) {
 	ctx := context.Background()
 
 	// Create mock CLI
-	mockCLI := newMockCLI(t, cmds)
-	clientCLI := mockCLI.client(clientNode.ListenAddr)
+	mockCLI := NewMockCLI(t, cmds)
+	clientCLI := mockCLI.Client(clientNode.ListenAddr)
 
 	// Create some wallets on the node to use for testing multisig
 	var walletAddrs []address.Address
@@ -48,7 +39,7 @@ func RunMultisigTest(t *testing.T, cmds []*lcli.Command, clientNode test.TestNod
 	paramDuration := "--duration=50"
 	paramRequired := fmt.Sprintf("--required=%d", threshold)
 	paramValue := fmt.Sprintf("--value=%dattofil", amtAtto)
-	cmd := []string{
+	out := clientCLI.RunCmd(
 		"msig", "create",
 		paramRequired,
 		paramDuration,
@@ -56,8 +47,7 @@ func RunMultisigTest(t *testing.T, cmds []*lcli.Command, clientNode test.TestNod
 		walletAddrs[0].String(),
 		walletAddrs[1].String(),
 		walletAddrs[2].String(),
-	}
-	out := clientCLI.runCmd(cmd)
+	)
 	fmt.Println(out)
 
 	// Extract msig robust address from output
@@ -71,18 +61,16 @@ func RunMultisigTest(t *testing.T, cmds []*lcli.Command, clientNode test.TestNod
 	// Propose to add a new address to the msig
 	// msig add-propose --from=<addr> <msig> <addr>
 	paramFrom := fmt.Sprintf("--from=%s", walletAddrs[0])
-	cmd = []string{
+	out = clientCLI.RunCmd(
 		"msig", "add-propose",
 		paramFrom,
 		msigRobustAddr,
 		walletAddrs[3].String(),
-	}
-	out = clientCLI.runCmd(cmd)
+	)
 	fmt.Println(out)
 
 	// msig inspect <msig>
-	cmd = []string{"msig", "inspect", "--vesting", "--decode-params", msigRobustAddr}
-	out = clientCLI.runCmd(cmd)
+	out = clientCLI.RunCmd("msig", "inspect", "--vesting", "--decode-params", msigRobustAddr)
 	fmt.Println(out)
 
 	// Expect correct balance
@@ -96,7 +84,7 @@ func RunMultisigTest(t *testing.T, cmds []*lcli.Command, clientNode test.TestNod
 	// msig add-approve --from=<addr> <msig> <addr> 0 <addr> false
 	txnID := "0"
 	paramFrom = fmt.Sprintf("--from=%s", walletAddrs[1])
-	cmd = []string{
+	out = clientCLI.RunCmd(
 		"msig", "add-approve",
 		paramFrom,
 		msigRobustAddr,
@@ -104,7 +92,6 @@ func RunMultisigTest(t *testing.T, cmds []*lcli.Command, clientNode test.TestNod
 		txnID,
 		walletAddrs[3].String(),
 		"false",
-	}
-	out = clientCLI.runCmd(cmd)
+	)
 	fmt.Println(out)
 }

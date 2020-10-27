@@ -15,10 +15,9 @@ import (
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-state-types/big"
 
-	miner0 "github.com/filecoin-project/specs-actors/actors/builtin/miner"
-
 	"github.com/filecoin-project/lotus/api"
 	"github.com/filecoin-project/lotus/chain/actors/builtin/miner"
+	"github.com/filecoin-project/lotus/chain/actors/policy"
 	"github.com/filecoin-project/lotus/chain/types"
 	"github.com/filecoin-project/lotus/lib/tablewriter"
 
@@ -220,7 +219,7 @@ var sectorsListCmd = &cli.Command{
 			tablewriter.Col("Deals"),
 			tablewriter.Col("DealWeight"),
 			tablewriter.NewLineCol("Error"),
-			tablewriter.NewLineCol("EarlyExpiration"))
+			tablewriter.NewLineCol("RecoveryTimeout"))
 
 		fast := cctx.Bool("fast")
 
@@ -282,7 +281,7 @@ var sectorsListCmd = &cli.Command{
 						}
 
 						if st.Early > 0 {
-							m["EarlyExpiration"] = color.YellowString(lcli.EpochTime(head.Height(), st.Early))
+							m["RecoveryTimeout"] = color.YellowString(lcli.EpochTime(head.Height(), st.Early))
 						}
 					}
 				}
@@ -463,7 +462,7 @@ var sectorsCapacityCollateralCmd = &cli.Command{
 			Expiration: abi.ChainEpoch(cctx.Uint64("expiration")),
 		}
 		if pci.Expiration == 0 {
-			pci.Expiration = miner0.MaxSectorExpirationExtension
+			pci.Expiration = policy.GetMaxSectorExpirationExtension()
 		}
 		pc, err := nApi.StateMinerInitialPledgeCollateral(ctx, maddr, pci, types.EmptyTSK)
 		if err != nil {
