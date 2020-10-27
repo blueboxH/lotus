@@ -7,6 +7,8 @@ import (
 	"math/bits"
 	"math/rand"
 	"os"
+	"fmt"
+	"strings"
 	"path/filepath"
 	"sync"
 	"time"
@@ -336,7 +338,11 @@ func (st *Local) reportHealth(ctx context.Context) {
 func (st *Local) SendSectorToMiner(ctx context.Context, sector abi.SectorID, spt abi.RegisteredSealProof, ft SectorFileType) error {
 
 	log.Infof("======================== ZFB Warning ========================= start send sector %v to miner storage", sector)
-	paths, _, err := st.AcquireSector(ctx, sector, spt, ft, FTNone, PathSealing, AcquireCopy)
+	ssize ,ssizeError := spt.SectorSize()
+	if ssizeError != nil {
+		return ssizeError
+	}
+	paths, _, err := st.AcquireSector(ctx, sector, ssize, ft, FTNone, PathSealing, AcquireCopy)
 	if err != nil {
 		log.Infof("======================== ZFB Warning ========================= send sector %v to miner storage error,%s", sector, err)
 		return err
