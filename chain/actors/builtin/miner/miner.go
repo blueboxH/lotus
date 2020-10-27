@@ -31,6 +31,8 @@ func init() {
 	})
 }
 
+var Methods = builtin2.MethodsMiner
+
 // Unchanged between v0 and v2 actors
 var WPoStProvingPeriod = miner0.WPoStProvingPeriod
 var WPoStPeriodDeadlines = miner0.WPoStPeriodDeadlines
@@ -75,6 +77,7 @@ type State interface {
 	DeadlinesChanged(State) (bool, error)
 
 	Info() (MinerInfo, error)
+	MinerInfoChanged(State) (bool, error)
 
 	DeadlineInfo(epoch abi.ChainEpoch) (*dline.Info, error)
 

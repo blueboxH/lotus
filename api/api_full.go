@@ -207,6 +207,15 @@ type FullNode interface {
 	// based on current chain conditions
 	MpoolPushMessage(ctx context.Context, msg *types.Message, spec *MessageSendSpec) (*types.SignedMessage, error)
 
+	// MpoolBatchPush batch pushes a signed message to mempool.
+	MpoolBatchPush(context.Context, []*types.SignedMessage) ([]cid.Cid, error)
+
+	// MpoolBatchPushUntrusted batch pushes a signed message to mempool from untrusted sources.
+	MpoolBatchPushUntrusted(context.Context, []*types.SignedMessage) ([]cid.Cid, error)
+
+	// MpoolBatchPushMessage batch pushes a unsigned message to mempool.
+	MpoolBatchPushMessage(context.Context, []*types.Message, *MessageSendSpec) ([]*types.SignedMessage, error)
+
 	// MpoolGetNonce gets next nonce for the specified sender.
 	// Note that this method may not be atomic. Use MpoolPushMessage instead.
 	MpoolGetNonce(context.Context, address.Address) (uint64, error)
@@ -277,6 +286,8 @@ type FullNode interface {
 	ClientListDeals(ctx context.Context) ([]DealInfo, error)
 	// ClientGetDealUpdates returns the status of updated deals
 	ClientGetDealUpdates(ctx context.Context) (<-chan DealInfo, error)
+	// ClientGetDealStatus returns status given a code
+	ClientGetDealStatus(ctx context.Context, statusCode uint64) (string, error)
 	// ClientHasLocal indicates whether a certain CID is locally stored.
 	ClientHasLocal(ctx context.Context, root cid.Cid) (bool, error)
 	// ClientFindData identifies peers that have a certain file, and returns QueryOffers (one per peer).
@@ -290,6 +301,8 @@ type FullNode interface {
 	ClientRetrieveWithEvents(ctx context.Context, order RetrievalOrder, ref *FileRef) (<-chan marketevents.RetrievalEvent, error)
 	// ClientQueryAsk returns a signed StorageAsk from the specified miner.
 	ClientQueryAsk(ctx context.Context, p peer.ID, miner address.Address) (*storagemarket.StorageAsk, error)
+	// ClientCalcCommP calculates the CommP and data size of the specified CID
+	ClientDealPieceCID(ctx context.Context, root cid.Cid) (DataCIDSize, error)
 	// ClientCalcCommP calculates the CommP for a specified file
 	ClientCalcCommP(ctx context.Context, inpath string) (*CommPRet, error)
 	// ClientGenCar generates a CAR file for the specified file.
@@ -301,6 +314,8 @@ type FullNode interface {
 	ClientDataTransferUpdates(ctx context.Context) (<-chan DataTransferChannel, error)
 	// ClientRestartDataTransfer attempts to restart a data transfer with the given transfer ID and other peer
 	ClientRestartDataTransfer(ctx context.Context, transferID datatransfer.TransferID, otherPeer peer.ID, isInitiator bool) error
+	// ClientCancelDataTransfer cancels a data transfer with the given transfer ID and other peer
+	ClientCancelDataTransfer(ctx context.Context, transferID datatransfer.TransferID, otherPeer peer.ID, isInitiator bool) error
 	// ClientRetrieveTryRestartInsufficientFunds attempts to restart stalled retrievals on a given payment channel
 	// which are stuck due to insufficient funds
 	ClientRetrieveTryRestartInsufficientFunds(ctx context.Context, paymentChannel address.Address) error
@@ -874,6 +889,12 @@ type BlockTemplate struct {
 type DataSize struct {
 	PayloadSize int64
 	PieceSize   abi.PaddedPieceSize
+}
+
+type DataCIDSize struct {
+	PayloadSize int64
+	PieceSize   abi.PaddedPieceSize
+	PieceCID    cid.Cid
 }
 
 type CommPRet struct {

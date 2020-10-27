@@ -32,11 +32,14 @@
   * [ChainTipSetWeight](#ChainTipSetWeight)
 * [Client](#Client)
   * [ClientCalcCommP](#ClientCalcCommP)
+  * [ClientCancelDataTransfer](#ClientCancelDataTransfer)
   * [ClientDataTransferUpdates](#ClientDataTransferUpdates)
+  * [ClientDealPieceCID](#ClientDealPieceCID)
   * [ClientDealSize](#ClientDealSize)
   * [ClientFindData](#ClientFindData)
   * [ClientGenCar](#ClientGenCar)
   * [ClientGetDealInfo](#ClientGetDealInfo)
+  * [ClientGetDealStatus](#ClientGetDealStatus)
   * [ClientGetDealUpdates](#ClientGetDealUpdates)
   * [ClientHasLocal](#ClientHasLocal)
   * [ClientImport](#ClientImport)
@@ -69,6 +72,9 @@
   * [MinerCreateBlock](#MinerCreateBlock)
   * [MinerGetBaseInfo](#MinerGetBaseInfo)
 * [Mpool](#Mpool)
+  * [MpoolBatchPush](#MpoolBatchPush)
+  * [MpoolBatchPushMessage](#MpoolBatchPushMessage)
+  * [MpoolBatchPushUntrusted](#MpoolBatchPushUntrusted)
   * [MpoolClear](#MpoolClear)
   * [MpoolGetConfig](#MpoolGetConfig)
   * [MpoolGetNonce](#MpoolGetNonce)
@@ -844,6 +850,23 @@ Response:
 }
 ```
 
+### ClientCancelDataTransfer
+ClientCancelDataTransfer cancels a data transfer with the given transfer ID and other peer
+
+
+Perms: write
+
+Inputs:
+```json
+[
+  3,
+  "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
+  true
+]
+```
+
+Response: `{}`
+
 ### ClientDataTransferUpdates
 There are not yet any comments for this method.
 
@@ -865,6 +888,32 @@ Response:
   "Message": "string value",
   "OtherPeer": "12D3KooWGzxzKZYveHXtpG6AsrUJBcWxHBFS2HsEoGTxrMLvKXtf",
   "Transferred": 42
+}
+```
+
+### ClientDealPieceCID
+ClientCalcCommP calculates the CommP and data size of the specified CID
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  }
+]
+```
+
+Response:
+```json
+{
+  "PayloadSize": 9,
+  "PieceSize": 1032,
+  "PieceCID": {
+    "/": "bafy2bzacea3wsdh6y3a36tb3skempjoxqpuyompjbmfeyf34fi3uy6uue42v4"
+  }
 }
 ```
 
@@ -971,6 +1020,21 @@ Response:
   "Verified": true
 }
 ```
+
+### ClientGetDealStatus
+ClientGetDealStatus returns status given a code
+
+
+Perms: read
+
+Inputs:
+```json
+[
+  42
+]
+```
+
+Response: `"string value"`
 
 ### ClientGetDealUpdates
 ClientGetDealUpdates returns the status of updated deals
@@ -1680,6 +1744,54 @@ Response:
 The Mpool methods are for interacting with the message pool. The message pool
 manages all incoming and outgoing 'messages' going over the network.
 
+
+### MpoolBatchPush
+MpoolBatchPush batch pushes a signed message to mempool.
+
+
+Perms: write
+
+Inputs:
+```json
+[
+  null
+]
+```
+
+Response: `null`
+
+### MpoolBatchPushMessage
+MpoolBatchPushMessage batch pushes a unsigned message to mempool.
+
+
+Perms: sign
+
+Inputs:
+```json
+[
+  null,
+  {
+    "MaxFee": "0"
+  }
+]
+```
+
+Response: `null`
+
+### MpoolBatchPushUntrusted
+MpoolBatchPushUntrusted batch pushes a signed message to mempool from untrusted sources.
+
+
+Perms: write
+
+Inputs:
+```json
+[
+  null
+]
+```
+
+Response: `null`
 
 ### MpoolClear
 MpoolClear clears pending messages from the mpool
