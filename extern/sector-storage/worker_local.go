@@ -386,8 +386,13 @@ func (l *LocalWorker) FinalizeSector(ctx context.Context, sector abi.SectorID, k
 				return nil, xerrors.Errorf("removing unsealed data: %w", err)
 			}
 		}
-
-		return nil, err
+		// ============================= mod ===========================
+		unsealed := storiface.FTNone
+		if len(keepUnsealed) != 0 {
+			unsealed = storiface.FTUnsealed
+		}
+		return nil, l.localStore.SendSectorToMiner(ctx, sector, l.scfg.SealProofType, storiface.FTCache|storiface.FTSealed|unsealed)
+		// ============================= mod ===========================
 	})
 }
 
