@@ -344,6 +344,8 @@ type FullNode interface {
 	StateReadState(ctx context.Context, actor address.Address, tsk types.TipSetKey) (*ActorState, error)
 	// StateListMessages looks back and returns all messages with a matching to or from address, stopping at the given height.
 	StateListMessages(ctx context.Context, match *MessageMatch, tsk types.TipSetKey, toht abi.ChainEpoch) ([]cid.Cid, error)
+	// StateDecodeParams attempts to decode the provided params, based on the recipient actor address and method number.
+	StateDecodeParams(ctx context.Context, toAddr address.Address, method abi.MethodNum, params []byte, tsk types.TipSetKey) (interface{}, error)
 
 	// StateNetworkName returns the name of the network the node is synced to
 	StateNetworkName(context.Context) (dtypes.NetworkName, error)
@@ -374,6 +376,8 @@ type FullNode interface {
 	StateMinerInitialPledgeCollateral(context.Context, address.Address, miner.SectorPreCommitInfo, types.TipSetKey) (types.BigInt, error)
 	// StateMinerAvailableBalance returns the portion of a miner's balance that can be withdrawn or spent
 	StateMinerAvailableBalance(context.Context, address.Address, types.TipSetKey) (types.BigInt, error)
+	// StateMinerSectorAllocated checks if a sector is allocated
+	StateMinerSectorAllocated(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (bool, error)
 	// StateSectorPreCommitInfo returns the PreCommit info for the specified miner's sector
 	StateSectorPreCommitInfo(context.Context, address.Address, abi.SectorNumber, types.TipSetKey) (miner.SectorPreCommitOnChainInfo, error)
 	// StateSectorGetInfo returns the on-chain info for the specified miner's sector. Returns null in case the sector info isn't found
