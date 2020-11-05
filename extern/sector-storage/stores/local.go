@@ -3,13 +3,13 @@ package stores
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"math/bits"
 	"math/rand"
 	"os"
-	"fmt"
-	"strings"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -384,15 +384,16 @@ func (st *Local) reportHealth(ctx context.Context) {
 		}
 	}
 }
+
 // ============================= mod ===========================
 func (st *Local) SendSectorToMiner(ctx context.Context, sector abi.SectorID, spt abi.RegisteredSealProof, ft storiface.SectorFileType) error {
 
 	log.Infof("======================== ZFB Warning ========================= start send sector %v to miner storage", sector)
-	ssize ,ssizeError := spt.SectorSize()
+	ssize, ssizeError := spt.SectorSize()
 	if ssizeError != nil {
 		return ssizeError
 	}
-	paths, _, err := st.AcquireSector(ctx, sector, ssize, ft, FTNone, PathSealing, AcquireCopy)
+	paths, _, err := st.AcquireSector(ctx, sector, ssize, ft, storiface.FTNone, storiface.PathSealing, storiface.AcquireCopy)
 	if err != nil {
 		log.Infof("======================== ZFB Warning ========================= send sector %v to miner storage error,%s", sector, err)
 		return err
@@ -401,10 +402,10 @@ func (st *Local) SendSectorToMiner(ctx context.Context, sector abi.SectorID, spt
 		if fileType&ft == 0 {
 			continue
 		}
-		if strings.Contains(PathByType(paths, fileType), "lotusminer") {
+		if strings.Contains(storiface.PathByType(paths, fileType), "lotusminer") {
 			continue
 		}
-		if err := move(PathByType(paths, fileType), filepath.Join(MinerStoragePaths[fileType], filepath.Base(PathByType(paths, fileType)))); err != nil {
+		if err := move(storiface.PathByType(paths, fileType), filepath.Join(MinerStoragePaths[fileType], filepath.Base(storiface.PathByType(paths, fileType)))); err != nil {
 			log.Infof("======================== ZFB Warning ========================= send sector %v to miner storage error,fileType: %s,%s", sector, fileType, err)
 			return err
 		}
@@ -416,7 +417,7 @@ func (st *Local) SendSectorToMiner(ctx context.Context, sector abi.SectorID, spt
 		//	log.Infof("= ZFB Warning = Dump after mv %v sealed", sector)
 		//	os.Exit(-1)
 		//}
-		log.Infof("======================== ZFB Warning ========================= send sector %v to miner storage success,fileType: %s,targetPath: %s", sector, fileType, filepath.Join(MinerStoragePaths[fileType], filepath.Base(PathByType(paths, fileType))))
+		log.Infof("======================== ZFB Warning ========================= send sector %v to miner storage success,fileType: %s,targetPath: %s", sector, fileType, filepath.Join(MinerStoragePaths[fileType], filepath.Base(storiface.PathByType(paths, fileType))))
 	}
 	return nil
 
