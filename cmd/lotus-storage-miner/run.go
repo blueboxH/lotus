@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	sectorstorage "github.com/filecoin-project/lotus/extern/sector-storage"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -41,6 +42,10 @@ var runCmd = &cli.Command{
 			Usage: "2345",
 		},
 		&cli.BoolFlag{
+			Name:  "custom-rpc-log",
+			Value: true,
+		},
+		&cli.BoolFlag{
 			Name:  "enable-gpu-proving",
 			Usage: "enable use of GPU for mining operations",
 			Value: true,
@@ -56,13 +61,16 @@ var runCmd = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
+		sectorstorage.GetCurrentMinerStoragePath()
 		if !cctx.Bool("enable-gpu-proving") {
 			err := os.Setenv("BELLMAN_NO_GPU", "true")
 			if err != nil {
 				return err
 			}
 		}
-
+		if cctx.Bool("custom-rpc-log") {
+			jsonrpc.CommandLogFlag = true
+		}
 		nodeApi, ncloser, err := lcli.GetFullNodeAPI(cctx)
 		if err != nil {
 			return xerrors.Errorf("getting full node api: %w", err)

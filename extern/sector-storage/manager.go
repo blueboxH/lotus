@@ -3,8 +3,10 @@ package sectorstorage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/google/uuid"
@@ -30,6 +32,16 @@ var log = logging.Logger("advmgr")
 var ErrNoWorkers = errors.New("no suitable workers found")
 
 type URLs []string
+
+var currentMinerStoragePath = ""
+
+func GetCurrentMinerStoragePath() {
+	if os.Getenv("CURRENT_MINER_STORAGE_PATH") == "" {
+		fmt.Println("Please set env CURRENT_MINER_STORAGE_PATH")
+		os.Exit(-1)
+	}
+	currentMinerStoragePath = os.Getenv("CURRENT_MINER_STORAGE_PATH")
+}
 
 type Worker interface {
 	storiface.WorkerCalls
@@ -571,7 +583,54 @@ func (m *Manager) FinalizeSector(ctx context.Context, sector abi.SectorID, keepU
 	selector := newExistingSelector(m.index, sector, storiface.FTCache|storiface.FTSealed, false)
 
 	err := m.sched.Schedule(ctx, sector, sealtasks.TTFinalize, selector,
-		m.schedFetch(sector, storiface.FTCache|storiface.FTSealed|unsealed, storiface.PathSealing, storiface.AcquireMove),
+		func(ctx context.Context, w Worker) error {
+			minerStorageInfos, err := m.localStore.Local(ctx)
+			if err != nil {
+				return err
+			}
+
+			var (
+				workerStorageID stores.ID
+				minerStorageID  stores.ID
+				minerFileTypes  storiface.SectorFileType
+			)
+			for _, minerStorageInfo := range minerStorageInfos {
+				if minerStorageInfo.CanStore && minerStorageInfo.LocalPath == currentMinerStoragePath {
+					minerStorageID = minerStorageInfo.ID
+				}
+			}
+			log.Infof("= ZFB Warning = miner storage id: %s for %v", minerStorageID, sector)
+			for _, ptype := range pathTypes {
+				if ptype&(storiface.FTSealed|storiface.FTCache|unsealed) == 0 {
+					continue
+				}
+				storageInfos, err := m.index.StorageFindSector(ctx, sector, ptype, 0, false)
+				if err != nil {
+					return err
+				}
+				for _, storageInfo := range storageInfos {
+					log.Infof("= ZFB Warning = Finalize file found , %v 's %s", sector, storageInfo.URLs)
+					if storageInfo.ID == minerStorageID {
+						//  declare local file fake transferred to remote
+						minerFileTypes |= ptype
+					} else {
+						workerStorageID = storageInfo.ID
+					}
+				}
+			}
+			log.Infof("= ZFB Warning = miner storage has a transfer fileType %s for %s", minerFileTypes, sector)
+			for _, ptype := range pathTypes {
+				if ptype&minerFileTypes == 0 {
+					continue
+				}
+				log.Infof("= ZFB Warning = Finalized file in the wrong place,declare it back %v 's %s", sector, ptype.String())
+				err := m.index.StorageDeclareSector(ctx, workerStorageID, sector, ptype, true)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		},
 		func(ctx context.Context, w Worker) error {
 			_, err := m.waitSimpleCall(ctx)(w.FinalizeSector(ctx, sector, keepUnsealed))
 			return err

@@ -134,24 +134,39 @@ func (r *Remote) AcquireSector(ctx context.Context, s abi.SectorID, ssize abi.Se
 		dest := storiface.PathByType(apaths, fileType)
 		storageID := storiface.PathByType(ids, fileType)
 
-		url, err := r.acquireFromRemote(ctx, s, fileType, dest)
-		if err != nil {
-			return storiface.SectorPaths{}, storiface.SectorPaths{}, err
-		}
+		// ============================= mod ===========================
+		if pathType == storiface.PathStorage && existing&storiface.FTSealed != 0 {
+			// FinalizeStore 阶段 的Fetch ,其实有两个地方经过 最后一步MoveStorage也经过这里,在FinalizeStore之后
+			log.Infof("=============================== ZFB Warning =========================== sector %v Miner fetch data after Finalized,fetch sector file type : %s", s, fileType)
+			storiface.SetPathByType(&paths, fileType, dest)
+			storiface.SetPathByType(&stores, fileType, storageID)
+			if err := r.index.StorageDeclareSector(ctx, ID(storageID), s, fileType, op == AcquireMove); err != nil {
+				log.Warnf("declaring sector %v in %s failed: %+v", s, storageID, err)
+				continue
+			}
+		} else {
+			// 其他阶段的Fetch
+			url, err := r.acquireFromRemote(ctx, s, fileType, dest)
+			if err != nil {
+				return storiface.SectorPaths{}, storiface.SectorPaths{}, err
+			}
 
-		storiface.SetPathByType(&paths, fileType, dest)
-		storiface.SetPathByType(&stores, fileType, storageID)
+			storiface.SetPathByType(&paths, fileType, dest)
+			storiface.SetPathByType(&stores, fileType, storageID)
 
-		if err := r.index.StorageDeclareSector(ctx, ID(storageID), s, fileType, op == storiface.AcquireMove); err != nil {
-			log.Warnf("declaring sector %v in %s failed: %+v", s, storageID, err)
-			continue
-		}
+			if err := r.index.StorageDeclareSector(ctx, ID(storageID), s, fileType, op == storiface.AcquireMove); err != nil {
+				log.Warnf("declaring sector %v in %s failed: %+v", s, storageID, err)
+				continue
+			}
 
-		if op == storiface.AcquireMove {
-			if err := r.deleteFromRemote(ctx, url); err != nil {
-				log.Warnf("deleting sector %v from %s (delete %s): %+v", s, storageID, url, err)
+			if op == storiface.AcquireMove {
+				if err := r.deleteFromRemote(ctx, url); err != nil {
+					log.Warnf("deleting sector %v from %s (delete %s): %+v", s, storageID, url, err)
+				}
 			}
 		}
+		// ============================= mod ===========================
+
 	}
 
 	return paths, stores, nil
