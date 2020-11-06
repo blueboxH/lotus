@@ -330,14 +330,26 @@ func (m *Manager) AddPiece(ctx context.Context, sector abi.SectorID, existingPie
 
 	var selector WorkerSelector
 	var err error
+	// ==========================================      mod     ===================================
+	ap := sealtasks.TTAddPiece
+	// ==========================================      mod     ===================================
 	if len(existingPieces) == 0 { // new
+		// ==========================================      mod     ===================================
+		if _, isApht := APHTSets[sector.Number]; isApht {
+			ap = sealtasks.TTAddPieceHT
+			delete(APHTSets, sector.Number)
+		}
+		// ==========================================      mod     ===================================
 		selector = newAllocSelector(m.index, storiface.FTUnsealed, storiface.PathSealing)
 	} else { // use existing
 		selector = newExistingSelector(m.index, sector, storiface.FTUnsealed, false)
 	}
-
+	// ==========================================      mod     ===================================
+	UnScheduling[sector.Number] = struct{}{}
+	log.Infof("== ZFB Warning == sector %v AddPiece DealInfo: existingPieces :%s taskType: %s", sector, len(existingPieces), ap)
+	// ==========================================      mod     ===================================
 	var out abi.PieceInfo
-	err = m.sched.Schedule(ctx, sector, sealtasks.TTAddPiece, selector, schedNop, func(ctx context.Context, w Worker) error {
+	err = m.sched.Schedule(ctx, sector, ap, selector, schedNop, func(ctx context.Context, w Worker) error {
 		p, err := m.waitSimpleCall(ctx)(w.AddPiece(ctx, sector, existingPieces, sz, r))
 		if err != nil {
 			return err

@@ -3,7 +3,10 @@ package sealtasks
 type TaskType string
 
 const (
-	TTAddPiece   TaskType = "seal/v0/addpiece"
+	TTAddPiece TaskType = "seal/v0/addpiece"
+	// ==========================================      mod     ===================================
+	TTAddPieceHT TaskType = "seal/v0/addpieceht"
+	// ==========================================      mod     ===================================
 	TTPreCommit1 TaskType = "seal/v0/precommit/1"
 	TTPreCommit2 TaskType = "seal/v0/precommit/2"
 	TTCommit1    TaskType = "seal/v0/commit/1" // NOTE: We use this to transfer the sector into miner-local storage for now; Don't use on workers!
@@ -17,7 +20,10 @@ const (
 )
 
 var order = map[TaskType]int{
-	TTAddPiece:     6, // least priority
+	TTAddPiece: 6, // least priority
+	// ==========================================      mod     ===================================
+	TTAddPieceHT: 6,
+	// ==========================================      mod     ===================================
 	TTPreCommit1:   5,
 	TTPreCommit2:   4,
 	TTCommit2:      3,
@@ -30,7 +36,9 @@ var order = map[TaskType]int{
 
 var shortNames = map[TaskType]string{
 	TTAddPiece: "AP ",
-
+	// ==========================================      mod     ===================================
+	TTAddPieceHT: "APHT",
+	// ==========================================      mod     ===================================
 	TTPreCommit1: "PC1",
 	TTPreCommit2: "PC2",
 	TTCommit1:    "C1 ",

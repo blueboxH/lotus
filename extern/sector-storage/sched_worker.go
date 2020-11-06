@@ -2,6 +2,7 @@ package sectorstorage
 
 import (
 	"context"
+	"github.com/filecoin-project/lotus/extern/sector-storage/sealtasks"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -28,6 +29,37 @@ func (sh *scheduler) runWorker(ctx context.Context, w Worker) error {
 	if err != nil {
 		return xerrors.Errorf("getting worker info: %w", err)
 	}
+
+	// ==========================================      mod     ===================================
+	// 如果这个 worker 是做p1 阶段, 则缓存起来
+	hostname := info.Hostname
+	tasks, _ := w.TaskTypes(ctx)
+	if _, supported := tasks[sealtasks.TTPreCommit1]; supported {
+		perWorkerNum := SchedulerHt.getSectorNumPerWorker()
+		if SchedulerHt.getWorkerMaxSectorNum(hostname) == 0 && perWorkerNum != 0 { // 初始化
+			SchedulerHt.setWorkerMaxSectorNum(hostname, perWorkerNum)
+		}
+
+		if SchedulerHt.getWorkerMaxSectorNum(hostname) > 0 { // 验证
+
+			for number, _ := range SchedulerHt.getWorkerSectorStates(hostname) {
+				if SchedulerHt.getSectorCache(number) == "" {
+					SchedulerHt.delWorkerSectorState(hostname, number)
+					log.Infof("worker %s init worker delete error HandingSector %s", hostname, number)
+				}
+			}
+		}
+
+		// 加入p1机器队列
+		SchedulerHt.addToPSet(hostname)
+	}
+
+	if _, supported := tasks[sealtasks.TTCommit2]; supported {
+		SchedulerHt.addToCSet(hostname)
+	}
+	log.Infof("add worker %s to miner, tasks %v", hostname, tasks)
+	// ==========================================      mod     ===================================
+
 
 	sessID, err := w.Session(ctx)
 	if err != nil {
@@ -430,6 +462,11 @@ func (sw *schedWorker) startProcessingTask(taskDone chan struct{}, req *workerRe
 
 			// Do the work!
 			err = req.work(req.ctx, sh.workTracker.worker(sw.wid, w.workerRpc))
+			// ==========================================      mod     ===================================
+			if err == nil {
+				SchedulerHt.afterTaskFinish(req.sector, req.taskType, w.info.Hostname)
+			}
+			// ==========================================      mod     ===================================
 
 			select {
 			case req.ret <- workerResponse{err: err}:
@@ -479,6 +516,10 @@ func (sh *scheduler) workerCleanup(wid WorkerID, w *workerHandle) {
 		}
 		sh.openWindows = newWindows
 
-		log.Debugf("worker %d dropped", wid)
+		// ==========================================      mod     ===================================
+		SchedulerHt.delPSet(w.info.Hostname)
+		SchedulerHt.delCSet(w.info.Hostname)
+		log.Infof("dropWorker %s and delete from pPet and cSet", w.info.Hostname)
+		// ==========================================      mod     ===================================
 	}
 }

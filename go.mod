@@ -2,6 +2,8 @@ module github.com/filecoin-project/lotus
 
 go 1.14
 
+replace github.com/filecoin-project/go-jsonrpc => github.com/blueboxH/go-jsonrpc v0.1.2-0.20201026030334-b69012de2ba1
+
 require (
 	contrib.go.opencensus.io/exporter/jaeger v0.1.0
 	contrib.go.opencensus.io/exporter/prometheus v0.1.0
@@ -46,6 +48,7 @@ require (
 	github.com/gbrlsnchs/jwt/v3 v3.0.0-beta.1
 	github.com/go-kit/kit v0.10.0
 	github.com/go-ole/go-ole v1.2.4 // indirect
+	github.com/gomodule/redigo v1.8.0
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/mux v1.7.4
 	github.com/gorilla/websocket v1.4.2
