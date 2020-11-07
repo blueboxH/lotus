@@ -140,7 +140,7 @@ func (r *Remote) AcquireSector(ctx context.Context, s abi.SectorID, ssize abi.Se
 			log.Infof("=============================== ZFB Warning =========================== sector %v Miner fetch data after Finalized,fetch sector file type : %s", s, fileType)
 			storiface.SetPathByType(&paths, fileType, dest)
 			storiface.SetPathByType(&stores, fileType, storageID)
-			if err := r.index.StorageDeclareSector(ctx, ID(storageID), s, fileType, op == AcquireMove); err != nil {
+			if err := r.index.StorageDeclareSector(ctx, ID(storageID), s, fileType, op == storiface.AcquireMove); err != nil {
 				log.Warnf("declaring sector %v in %s failed: %+v", s, storageID, err)
 				continue
 			}
