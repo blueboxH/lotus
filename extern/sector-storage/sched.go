@@ -2,7 +2,6 @@ package sectorstorage
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"sort"
 	"sync"
@@ -243,7 +242,6 @@ type SchedDiagInfo struct {
 
 // ==========================================      mod     ===================================
 
-
 func (sh *scheduler) runSched() {
 	defer close(sh.closed)
 
@@ -313,7 +311,7 @@ func (sh *scheduler) runSched() {
 					for _, request := range window.todo {
 						// ==========================================      mod     ===================================
 						log.Debugf("================ get sector %s %s at disable", request.sector, request.taskType.Short())
-						sh.pushWorkerRequest(req)
+						sh.pushWorkerRequest(request)
 						// ==========================================      mod     ===================================
 
 					}
@@ -720,7 +718,6 @@ func (sh *scheduler) tryHtSched() {
 }
 
 // ==========================================      mod     ===================================
-
 
 func (sh *scheduler) schedClose() {
 	sh.workersLk.Lock()
