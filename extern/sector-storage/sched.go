@@ -242,7 +242,6 @@ type SchedDiagInfo struct {
 
 // ==========================================      mod     ===================================
 
-
 func (sh *scheduler) runSched() {
 	defer close(sh.closed)
 
@@ -719,7 +718,6 @@ func (sh *scheduler) tryHtSched() {
 }
 
 // ==========================================      mod     ===================================
-
 
 func (sh *scheduler) schedClose() {
 	sh.workersLk.Lock()
