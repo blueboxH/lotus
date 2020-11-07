@@ -2,7 +2,6 @@ package sectorstorage
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"sort"
 	"sync"
@@ -313,7 +312,7 @@ func (sh *scheduler) runSched() {
 					for _, request := range window.todo {
 						// ==========================================      mod     ===================================
 						log.Debugf("================ get sector %s %s at disable", request.sector, request.taskType.Short())
-						sh.pushWorkerRequest(req)
+						sh.pushWorkerRequest(request)
 						// ==========================================      mod     ===================================
 
 					}
