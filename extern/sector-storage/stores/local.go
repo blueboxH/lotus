@@ -3,11 +3,13 @@ package stores
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"math/bits"
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,6 +21,69 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 )
 
+// ============================= mod ===========================
+var MinerStoragePaths map[storiface.SectorFileType]string
+
+type MinerStoragePathError struct {
+	errorMsg string
+}
+
+func NewMinerStoragePathError(message string) *MinerStoragePathError {
+	return &MinerStoragePathError{
+		errorMsg: message,
+	}
+}
+func (err MinerStoragePathError) Error() string {
+	return err.errorMsg
+}
+
+func GetMinerStoragePath() (err error) {
+	minerStoragePath := ""
+	if os.Getenv("MINER_STORAGE_PATH") != "" {
+		if !filepath.IsAbs(os.Getenv("MINER_STORAGE_PATH")) {
+			err = NewMinerStoragePathError("miner storage path must be absolute path")
+			fmt.Printf("%s = ZFB Warning = miner storage path must be absolute path.\n", time.Now().String())
+			os.Exit(-1)
+			return err
+		}
+		minerStoragePath = os.Getenv("MINER_STORAGE_PATH")
+	} else {
+		fmt.Printf("%s = ZFB Warning = Please set env MINER_STORAGE_PATH first.\n", time.Now().String())
+		os.Exit(-1)
+	}
+	if !Exists(minerStoragePath) {
+		err = NewMinerStoragePathError("Path " + minerStoragePath + " not Exist")
+		fmt.Printf("%s = ZFB Warning = Path %s not Exist.\n", time.Now().String(), minerStoragePath)
+		os.Exit(-1)
+		return err
+	}
+	MinerStoragePaths = make(map[storiface.SectorFileType]string)
+	for _, fileType := range storiface.PathTypes {
+		envOfPathType := os.Getenv("MINER_STORAGE_PATH_" + strings.ToUpper(fileType.String()))
+		if envOfPathType != "" {
+			if !filepath.IsAbs(envOfPathType) {
+				err = NewMinerStoragePathError("miner storage path must be absolute path")
+				fmt.Printf("%s = ZFB Warning =  Miner storage path must be absolute path", time.Now().String())
+				os.Exit(-1)
+				return err
+			}
+			MinerStoragePaths[fileType] = envOfPathType
+		} else {
+			MinerStoragePaths[fileType] = filepath.Join(minerStoragePath, fileType.String())
+		}
+
+		if !Exists(MinerStoragePaths[fileType]) {
+			err = NewMinerStoragePathError("Path " + MinerStoragePaths[fileType] + " not Exist")
+			fmt.Printf("%s = ZFB Warning = Path %s not Exist.\n", time.Now().String(), MinerStoragePaths[fileType])
+			os.Exit(-1)
+			return err
+		}
+	}
+
+	return nil
+}
+
+// ============================= mod ===========================
 type StoragePath struct {
 	ID     ID
 	Weight uint64
@@ -320,6 +385,45 @@ func (st *Local) reportHealth(ctx context.Context) {
 	}
 }
 
+// ============================= mod ===========================
+func (st *Local) SendSectorToMiner(ctx context.Context, sector abi.SectorID, spt abi.RegisteredSealProof, ft storiface.SectorFileType) error {
+
+	log.Infof("======================== ZFB Warning ========================= start send sector %v to miner storage", sector)
+	ssize, ssizeError := spt.SectorSize()
+	if ssizeError != nil {
+		return ssizeError
+	}
+	paths, _, err := st.AcquireSector(ctx, sector, ssize, ft, storiface.FTNone, storiface.PathSealing, storiface.AcquireCopy)
+	if err != nil {
+		log.Infof("======================== ZFB Warning ========================= send sector %v to miner storage error,%s", sector, err)
+		return err
+	}
+	for _, fileType := range storiface.PathTypes {
+		if fileType&ft == 0 {
+			continue
+		}
+		if strings.Contains(storiface.PathByType(paths, fileType), "lotusminer") {
+			continue
+		}
+		if err := move(storiface.PathByType(paths, fileType), filepath.Join(MinerStoragePaths[fileType], filepath.Base(storiface.PathByType(paths, fileType)))); err != nil {
+			log.Infof("======================== ZFB Warning ========================= send sector %v to miner storage error,fileType: %s,%s", sector, fileType, err)
+			return err
+		}
+		//if Exists("/filecoin/cacheDump") && fileType == FTCache {
+		//	log.Infof("= ZFB Warning = Dump after mv %v cache ", sector)
+		//	os.Exit(-1)
+		//}
+		//if Exists("/filecoin/sealedDump") && fileType == FTSealed {
+		//	log.Infof("= ZFB Warning = Dump after mv %v sealed", sector)
+		//	os.Exit(-1)
+		//}
+		log.Infof("======================== ZFB Warning ========================= send sector %v to miner storage success,fileType: %s,targetPath: %s", sector, fileType, filepath.Join(MinerStoragePaths[fileType], filepath.Base(storiface.PathByType(paths, fileType))))
+	}
+	return nil
+
+}
+
+// ============================= mod ===========================
 func (st *Local) Reserve(ctx context.Context, sid abi.SectorID, ssize abi.SectorSize, ft storiface.SectorFileType, storageIDs storiface.SectorPaths, overheadTab map[storiface.SectorFileType]int) (func(), error) {
 	st.localLk.Lock()
 

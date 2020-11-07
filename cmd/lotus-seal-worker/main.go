@@ -108,6 +108,10 @@ var runCmd = &cli.Command{
 			Usage: "host address and port the worker api will listen on",
 			Value: "0.0.0.0:3456",
 		},
+		&cli.BoolFlag{
+			Name:  "custom-rpc-log",
+			Value: true,
+		},
 		&cli.StringFlag{
 			Name:   "address",
 			Hidden: true,
@@ -175,7 +179,10 @@ var runCmd = &cli.Command{
 				return xerrors.Errorf("could not set no-gpu env: %+v", err)
 			}
 		}
-
+		if cctx.Bool("custom-rpc-log") {
+			jsonrpc.CommandLogFlag = true
+		}
+		//sectorstorage.InitRedis() // 初始化redis, 暂时不需要
 		// Connect to storage-miner
 		ctx := lcli.ReqContext(cctx)
 
@@ -236,10 +243,17 @@ var runCmd = &cli.Command{
 
 		taskTypes = append(taskTypes, sealtasks.TTFetch, sealtasks.TTCommit1, sealtasks.TTFinalize)
 
+		// inject mount reflect
+		minerStoragePathErr := stores.GetMinerStoragePath()
+		if minerStoragePathErr != nil {
+			os.Exit(-1)
+		}
+
 		if cctx.Bool("addpiece") {
 			taskTypes = append(taskTypes, sealtasks.TTAddPiece)
 		}
 		if cctx.Bool("precommit1") {
+			taskTypes = append(taskTypes, sealtasks.TTAddPieceHT)
 			taskTypes = append(taskTypes, sealtasks.TTPreCommit1)
 		}
 		if cctx.Bool("unseal") {
